@@ -62,12 +62,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "byte-slice-cast"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0a5e3906bcbf133e33c1d4d95afc664ad37fbdb9f6568d8043e7ea8c27d93d3"
-
-[[package]]
 name = "byteorder"
 version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -139,12 +133,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "cortex-m-semihosting"
-version = "0.3.7"
+name = "cortex-m-rtic"
+version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bffa6c1454368a6aa4811ae60964c38e6996d397ff8095a8b9211b1c1f749bc"
+checksum = "fa43f63284b363ac64f9ce5221a0f593b54f73258aba8e1a88c1feed8efdb664"
 dependencies = [
- "cortex-m 0.7.2",
+ "cortex-m 0.6.7",
+ "cortex-m-rt",
+ "cortex-m-rtic-macros",
+ "heapless",
+ "rtic-core",
+ "version_check",
+]
+
+[[package]]
+name = "cortex-m-rtic-macros"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a1a6a4c9550373038c0e21a78d44d529bd697c25bbf6b8004bddc6e63b119c7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "rtic-syntax",
+ "syn",
 ]
 
 [[package]]
@@ -176,38 +187,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c816f778ec2147f95990a606795fe9dcc82781bcd98e222675c4103c2d250ea1"
 
 [[package]]
-name = "display-interface"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da12a892db5cce95ae247e8803dc653b1a73da3b0450f7983eb518dd54f583cf"
-
-[[package]]
-name = "display-interface-spi"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94d08c3a1682b166cbcbb4fe009a31a1834ba46c16599bf7a9b3cc7bc31b38b0"
-dependencies = [
- "byte-slice-cast",
- "display-interface",
- "embedded-hal",
-]
-
-[[package]]
 name = "embedded-can"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12719661dce6080d174aa0a9df1f61756022dc105c1761bcd37091a0ee5de635"
 dependencies = [
  "nb 1.0.0",
-]
-
-[[package]]
-name = "embedded-graphics"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40a69991ceb896bd4810a0cf2bcc46fc94b7860573c71f965d8e5b3d66942fed"
-dependencies = [
- "byteorder",
 ]
 
 [[package]]
@@ -258,15 +243,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "heapless"
-version = "0.5.6"
+name = "hashbrown"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74911a68a1658cfcfb61bc0ccfbd536e3b6e906f8c2f7883ee50157e3e2184f1"
+checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
+
+[[package]]
+name = "heapless"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "634bd4d29cbf24424d0a4bfcbf80c6960129dc24424752a7d1d1390607023422"
 dependencies = [
  "as-slice",
- "generic-array 0.13.3",
+ "generic-array 0.14.4",
  "hash32",
  "stable_deref_trait",
+]
+
+[[package]]
+name = "indexmap"
+version = "1.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "824845a0bf897a9042383849b02c1bc219c2383772efcd5c6f9766fa4b81aef3"
+dependencies = [
+ "autocfg",
+ "hashbrown",
 ]
 
 [[package]]
@@ -314,14 +315,9 @@ name = "numworks_rust"
 version = "0.1.0"
 dependencies = [
  "cortex-m 0.6.7",
- "cortex-m-rt",
- "cortex-m-semihosting",
- "display-interface-spi",
- "embedded-graphics",
+ "cortex-m-rtic",
  "embedded-hal",
  "panic-halt",
- "st7789",
- "stm32f7 0.13.0",
  "stm32f7xx-hal",
 ]
 
@@ -380,6 +376,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "rtic-core"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bd58a6949de8ff797a346a28d9f13f7b8f54fa61bb5e3cb0985a4efb497a5ef"
+
+[[package]]
+name = "rtic-syntax"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8152fcaa845720d61e6cc570548b89144c2c307f18a480bbd97e55e9f6eeff04"
+dependencies = [
+ "indexmap",
+ "proc-macro2",
+ "syn",
+]
+
+[[package]]
 name = "rustc_version"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -422,19 +435,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "st7789"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9f2a309b876ab3ac011a437624b439ec22387db20c86e024b5aae8090428623"
-dependencies = [
- "display-interface",
- "embedded-graphics",
- "embedded-hal",
- "heapless",
- "nb 0.1.3",
-]
-
-[[package]]
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -448,18 +448,6 @@ checksum = "e8e6dbd8bf0965421c0c76c09e05683e71243216bf4d87984c7f95ed53caa28c"
 dependencies = [
  "bare-metal",
  "cortex-m 0.6.7",
- "cortex-m-rt",
- "vcell",
-]
-
-[[package]]
-name = "stm32f7"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "776fb8cd4dd0c5dc44f27bd8d0f02311901f49e5a78260a7205c75be6e3f0490"
-dependencies = [
- "bare-metal",
- "cortex-m 0.7.2",
  "cortex-m-rt",
  "vcell",
 ]
@@ -481,7 +469,7 @@ dependencies = [
  "nb 0.1.3",
  "rand_core",
  "rtcc",
- "stm32f7 0.11.0",
+ "stm32f7",
  "void",
 ]
 
