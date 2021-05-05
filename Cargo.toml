@@ -27,4 +27,4 @@ bench = false
 [profile.release]
 codegen-units = 1
 debug = true
-lto = true 
+lto = true

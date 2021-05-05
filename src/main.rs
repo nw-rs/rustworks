@@ -1,35 +1,55 @@
 #![no_std]
 #![no_main]
-use cortex_m::asm;
+
 use cortex_m_rt::entry;
-use cortex_m_semihosting::hprintln;
 use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac::Peripherals, prelude::*};
 
 extern crate panic_halt;
 
+struct PWMPin<P: OutputPin> {
+    pin: P,
+}
+
+impl<P: OutputPin> PWMPin<P> {
+    fn new(pin: P) -> Self {
+        Self { pin }
+    }
+
+    fn send_pulses(&mut self, pulses: u32, delay: &mut Delay) {
+        for _ in 0..pulses {
+            let _ = self.pin.set_low();
+            delay.delay_us(20u8);
+            let _ = self.pin.set_high();
+            delay.delay_us(20u8);
+        }
+    }
+}
+
 #[entry]
 fn main() -> ! {
-    let peripherals = Peripherals::take().unwrap();
+    let dp = Peripherals::take().unwrap();
     let cp = cortex_m::Peripherals::take().unwrap();
 
-    let rcc = peripherals.RCC.constrain();
+    let rcc = dp.RCC.constrain();
     let clocks = rcc.cfgr.freeze();
     let mut delay = Delay::new(cp.SYST, clocks);
 
-    let gpioe = peripherals.GPIOE.split();
-    let mut backlight = gpioe.pe0.into_push_pull_output();
+    let gpioe = dp.GPIOE.split();
+    let mut backlight = PWMPin::new(gpioe.pe0.into_push_pull_output());
 
-    for _ in 0..(16 + 0xF - 8) {
-        backlight.set_low().expect("GPIO cannot fail.");
-        delay.delay_us(20u8);
-        backlight.set_high().expect("GPIO cannot fail.");
-        delay.delay_us(20u8);
-    }
+    let gpiob = dp.GPIOB.split();
+    let mut red = PWMPin::new(gpiob.pb4.into_push_pull_output());
+    let mut green = PWMPin::new(gpiob.pb5.into_push_pull_output());
+    let mut blue = PWMPin::new(gpiob.pb0.into_push_pull_output());
 
-    let data_str = "This is a test message writing to flash.";
+    red.send_pulses(20, &mut delay);
+    green.send_pulses(20, &mut delay);
+    blue.send_pulses(20, &mut delay);
+
+    let data_str = "This is a message to test if writing to flash works.";
     let data: &[u8] = data_str.as_bytes();
 
-    let mut flash = Flash::new(peripherals.FLASH);
+    let mut flash = Flash::new(dp.FLASH);
 
     // The flash needs to be unlocked before any erase or program operations.
     flash.unlock();
@@ -44,16 +64,41 @@ fn main() -> ! {
     // Lock the flash memory to prevent any accidental modification of the flash content.
     flash.lock();
 
-    // Create a slice that can be used to read the written data.
-    #[allow(unsafe_code)]
-    let flash_data = unsafe { core::slice::from_raw_parts(0x0800C000 as *const u8, data.len()) };
+    let mut backlight_level = 0;
 
-    // Compare the written data with the expected value.
-    if flash_data == data {
-        hprintln!("Flash programming successful").unwrap();
-    }
+    let mut red_level = 0u32;
+
+    let mut green_level = 0u32;
+
+    let mut blue_level = 0u32;
 
     loop {
-        asm::nop()
+        if backlight_level >= 16 {
+            backlight_level = 0;
+        } else {
+            backlight_level = backlight_level + 1;
+        }
+            backlight.send_pulses(backlight_level, &mut delay);
+
+        if red_level < u8::MAX.into() {
+            red.send_pulses(red_level, &mut delay);
+            red_level = red_level + 1;
+        } else {
+            if green_level < u8::MAX.into() {
+                green.send_pulses(green_level, &mut delay);
+                green_level = green_level + 1;
+            } else {
+                if blue_level < u8::MAX.into() {
+                    blue.send_pulses(blue_level, &mut delay);
+                    blue_level = blue_level + 1;
+                } else {
+                    red_level = 0;
+                    green_level = 0;
+                    blue_level = 0;
+                }
+            }
+        }
+
+        delay.delay_ms(100u16);
     }
 }
