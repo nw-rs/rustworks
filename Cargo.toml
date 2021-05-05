@@ -1,5 +1,5 @@
 [package]
-name = "numworks_custom_os"
+name = "numworks_rust"
 version = "0.1.0"
 authors = ["willemml <willem@leit.so>"]
 edition = "2018"
@@ -30,7 +30,7 @@ version = "0.13"
 
 # this lets you use `cargo fix`!
 [[bin]]
-name = "numworks_custom_os"
+name = "numworks_rust"
 test = false
 bench = false
 
