@@ -15,26 +15,16 @@ display-interface-spi = "0.4"
 embedded-graphics = "0.6.2"
 embedded-hal = "0.2.4"
 
-# Uncomment for the panic example.
-# panic-itm = "0.4.1"
-
-# Uncomment for the allocator example.
-# alloc-cortex-m = "0.4.0"
-
-# Uncomment for the device example.
-# Update `memory.x`, set target to `thumbv7em-none-eabihf` in `.cargo/config`,
-# and then use `cargo build --examples device` to build it.
 [dependencies.stm32f7]
 features = ["stm32f730", "rt"]
 version = "0.13"
 
-# this lets you use `cargo fix`!
 [[bin]]
 name = "numworks_rust"
 test = false
 bench = false
 
 [profile.release]
-codegen-units = 1 # better optimizations
-debug = true # symbols are nice and they don't increase the size on Flash
-lto = true # better optimizations
+codegen-units = 1
+debug = true
+lto = true 

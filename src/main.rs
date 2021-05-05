@@ -8,16 +8,10 @@ use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::*;
 use embedded_graphics::style::*;
 use st7789::{Orientation, ST7789};
-#[allow(unused_imports)]
-use stm32f7::stm32f730::{self, interrupt, Interrupt, NVIC};
 use stm32f7xx_hal::pac::Peripherals;
+use stm32f7xx_hal::{delay::Delay, rcc::Rcc, time::MegaHertz};
 use stm32f7xx_hal::{
-    delay::Delay,
-    rcc::{Rcc},
-    time::MegaHertz,
-};
-use stm32f7xx_hal::{
-    gpio::{GpioExt},
+    gpio::GpioExt,
     pac::CorePeripherals,
     prelude::OutputPin,
     rcc::{HSEClock, HSEClockMode, RccExt},
@@ -41,14 +35,14 @@ fn main() -> ! {
         .freeze();
     let mut delay = Delay::new(core.SYST, clocks);
 
-    let gpioa = peripherals.GPIOA.split();
+    let _gpioa = peripherals.GPIOA.split();
     let gpiob = peripherals.GPIOB.split();
     let gpioc = peripherals.GPIOC.split();
-    let gpiod = peripherals.GPIOD.split();
+    let _gpiod = peripherals.GPIOD.split();
     let gpioe = peripherals.GPIOE.split();
 
     let mut backlight = gpioe.pe0.into_push_pull_output();
-    backlight.set_low();
+    let _ = backlight.set_low();
 
     let rst = gpioe.pe1.into_push_pull_output();
 
