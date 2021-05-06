@@ -1,4 +1,4 @@
-# Numworks Rust
+# RustWorks
 
 An OS (eventually) for the Numworks calculator (model n0110).
 
