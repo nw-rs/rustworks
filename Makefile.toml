@@ -2,11 +2,11 @@
 command = "cargo"
 args= [
     "objcopy",
-    "--bin", "numworks_rust",
+    "--bin", "rustworks",
     "--release",
     "--",
     "-O", "binary",
-    "target/thumbv7em-none-eabihf/release/numworks_rust.bin"
+    "target/thumbv7em-none-eabihf/release/rustworks.bin"
 ]
 
 [tasks.dfu]
@@ -15,6 +15,6 @@ args = [
     "-d", "0483:df11",
     "-a", "0",
     "-s", "0x08000000:leave",
-    "-D", "target/thumbv7em-none-eabihf/release/numworks_rust.bin"
+    "-D", "target/thumbv7em-none-eabihf/release/rustworks.bin"
 ]
 dependencies = ["objcopy"]
