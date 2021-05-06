@@ -466,6 +466,8 @@ dependencies = [
 [[package]]
 name = "st7789"
 version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9f2a309b876ab3ac011a437624b439ec22387db20c86e024b5aae8090428623"
 dependencies = [
  "display-interface",
  "embedded-graphics",
