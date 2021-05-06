@@ -107,8 +107,6 @@ const APP: () = {
 
         let (_fsmc, lcd) = FsmcLcd::new(dp.FMC, lcd_pins, &clocks, &read_timing, &write_timing);
 
-        backlight_control.send_pulses(10, &mut delay);
-
         // Reset LCD controller
         lcd_reset.set_low().unwrap();
         delay.delay_ms(5u16);
@@ -122,14 +120,16 @@ const APP: () = {
 
         // Add LCD controller driver
         let mut lcd = St7789::new(lcd, 240, 240);
-        let mut id = [0u8; 3];
+        /*let mut id = [0u8; 3];
         lcd.read(0x04, &mut id);
         if id != [0x85, 0x85, 0x52] {
             panic!(
                 "Unexpected LCD controller ID: {:#x} {:#x} {:#x}",
                 id[0], id[1], id[2]
             );
-        }
+        }*/
+
+        backlight_control.send_pulses(10, &mut delay);
 
         // LCD controller setup
         configure_lcd(&mut lcd, &mut delay);
