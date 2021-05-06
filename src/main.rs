@@ -15,6 +15,8 @@ use embedded_graphics::style::*;
 
 use st7789::{Orientation, ST7789};
 
+const HCLK_MHZ: u32 = 192;
+
 #[app(device = stm32f7xx_hal::pac, peripherals = true)]
 const APP: () = {
     #[init]
@@ -44,7 +46,7 @@ const APP: () = {
         flash.lock();
 
         let rcc = dp.RCC.constrain();
-        let clocks = rcc.cfgr.hclk(100.mhz()).freeze();
+        let clocks = rcc.cfgr.hclk(HCLK_MHZ.mhz()).freeze();
         let mut delay = Delay::new(cp.SYST, clocks);
 
         let gpioc = dp.GPIOC.split();
@@ -86,15 +88,23 @@ const APP: () = {
         };
 
         let mut lcd_power = gpioc.pc8.into_push_pull_output();
-        let mut lcd_reset = gpioe.pe1.into_push_pull_output();
+        let lcd_reset = gpioe.pe1.into_push_pull_output();
         let mut lcd_extd_command = gpiod.pd6.into_push_pull_output();
         let mut lcd_tearing_effect = gpiob.pb11.into_push_pull_output();
         let mut backlight_control = PWMPin::new(gpioe.pe0.into_push_pull_output());
 
         lcd_power.set_high().unwrap();
-        lcd_reset.set_high().unwrap();
         lcd_tearing_effect.set_high().unwrap();
         lcd_extd_command.set_high().unwrap();
+
+        let tedge: u32 = 15;
+        let twc: u32 = 66;
+        let trcfm: u32 = 450;
+        let twrl: u32 = 15;
+        let trdlfm: u32= 355;
+
+        let trdatast: u32 = trdlfm + tedge;
+        let twdatast: u32 = twrl + tedge;
 
         let read_timing = Timing::default().data(8).address_setup(8).bus_turnaround(0);
         let write_timing = Timing::default().data(3).address_setup(3).bus_turnaround(0);
@@ -130,7 +140,7 @@ const APP: () = {
             .into_styled(PrimitiveStyle::with_stroke(RgbColor::WHITE, 10));
 
         // draw two circles on black background
-        display.clear(Rgb565::BLACK).unwrap();
+        //display.clear(Rgb565::BLACK).unwrap();
         circle1.draw(&mut display).unwrap();
         circle2.draw(&mut display).unwrap();
         triangle.draw(&mut display).unwrap();
@@ -141,6 +151,10 @@ const APP: () = {
         }
     }
 };
+
+fn nano_seconds_to_cycles(nanoseconds: u32) -> u32 {
+    nanoseconds * HCLK_MHZ / 100 + 1
+}
 
 /// Simple PWM pin interface
 struct PWMPin<P: OutputPin> {
