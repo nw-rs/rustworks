@@ -7,9 +7,10 @@ edition = "2018"
 [dependencies]
 cortex-m = "0.6"
 panic-halt = "0.2"
-stm32f7xx-hal = { version = "0.3.0", features = ["stm32f730", "rt"] }
+stm32f7xx-hal = { git = "https://github.com/willemml/stm32f7xx-hal", branch = "fsmc_lcd", features = ["stm32f730", "rt", "fmc"] }
 embedded-hal = "0.2"
 cortex-m-rtic = "0.5.6"
+embedded-graphics = "0.6.1"
 
 [[bin]]
 name = "numworks_rust"
