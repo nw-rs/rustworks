@@ -22,7 +22,7 @@ cargo install cargo-make
 
 ## Flash
 
-Complete setup, then run the following:
+Complete setup, plug in your calculator and put it into dfu mode (press 6 and reset at the same time), then run the following:
 
 ```zsh
 cargo make dfu
