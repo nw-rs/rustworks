@@ -5,15 +5,26 @@ extern crate panic_halt;
 
 use rtic::app;
 
-use stm32f7xx_hal::fmc_lcd::{ChipSelect1, FsmcLcd, LcdPins, Timing};
+use stm32f7xx_hal::fmc_lcd::{ChipSelect1, FsmcLcd, Lcd, LcdPins, SubBank, Timing};
 use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
+
+use embedded_hal::blocking::delay::DelayUs;
+use embedded_hal::digital::v2::OutputPin;
 
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::*;
 use embedded_graphics::style::*;
 
-use st7789::{Orientation, ST7789};
+// use st7789::{Orientation, ST7789};
+
+use core::convert::{Infallible, TryInto};
+use core::iter;
+use core::iter::{Cloned, Cycle};
+use core::ops::RangeInclusive;
+use core::slice::Iter;
+
+const HCLK_MHZ: u32 = 192;
 
 #[app(device = stm32f7xx_hal::pac, peripherals = true)]
 const APP: () = {
@@ -44,7 +55,7 @@ const APP: () = {
         flash.lock();
 
         let rcc = dp.RCC.constrain();
-        let clocks = rcc.cfgr.hclk(100.mhz()).freeze();
+        let clocks = rcc.cfgr.hclk(HCLK_MHZ.mhz()).freeze();
         let mut delay = Delay::new(cp.SYST, clocks);
 
         let gpioc = dp.GPIOC.split();
@@ -86,13 +97,16 @@ const APP: () = {
         };
 
         let mut lcd_power = gpioc.pc8.into_push_pull_output();
-        let mut lcd_reset = gpioe.pe1.into_push_pull_output();
         let mut lcd_extd_command = gpiod.pd6.into_push_pull_output();
         let mut lcd_tearing_effect = gpiob.pb11.into_push_pull_output();
+
+        let mut lcd_reset = gpioe.pe1.into_push_pull_output();
+
+        hard_reset_display(&mut lcd_reset, &mut delay);
+
         let mut backlight_control = PWMPin::new(gpioe.pe0.into_push_pull_output());
 
         lcd_power.set_high().unwrap();
-        lcd_reset.set_high().unwrap();
         lcd_tearing_effect.set_high().unwrap();
         lcd_extd_command.set_high().unwrap();
 
@@ -103,47 +117,83 @@ const APP: () = {
 
         backlight_control.send_pulses(10, &mut delay);
 
-        let mut display = ST7789::new(lcd, lcd_reset, 240, 320);
+        // let mut display = ST7789::new(lcd, lcd_reset, 320, 240);
 
-        display.init(&mut delay).unwrap();
+        // display.init(&mut delay).unwrap();
 
-        display.set_orientation(Orientation::Landscape).unwrap();
+        // display.set_orientation(Orientation::Landscape).unwrap();
 
-        let circle1 = Circle::new(Point::new(128, 64), 64)
-            .into_styled(PrimitiveStyle::with_fill(Rgb565::RED));
-        let circle2 = Circle::new(Point::new(64, 64), 64)
-            .into_styled(PrimitiveStyle::with_stroke(Rgb565::GREEN, 1));
+        // let circle1 = Circle::new(Point::new(128, 64), 64)
+        //     .into_styled(PrimitiveStyle::with_fill(Rgb565::RED));
+        // let circle2 = Circle::new(Point::new(64, 64), 64)
+        //     .into_styled(PrimitiveStyle::with_stroke(Rgb565::GREEN, 1));
 
-        let blue_with_red_outline = PrimitiveStyleBuilder::new()
-            .fill_color(Rgb565::BLUE)
-            .stroke_color(Rgb565::RED)
-            .stroke_width(1) // > 1 is not currently supported in embedded-graphics on triangles
-            .build();
-        let triangle = Triangle::new(
-            Point::new(40, 120),
-            Point::new(40, 220),
-            Point::new(140, 120),
-        )
-        .into_styled(blue_with_red_outline);
+        // let blue_with_red_outline = PrimitiveStyleBuilder::new()
+        //     .fill_color(Rgb565::BLUE)
+        //     .stroke_color(Rgb565::RED)
+        //     .stroke_width(1) // > 1 is not currently supported in embedded-graphics on triangles
+        //     .build();
+        // let triangle = Triangle::new(
+        //     Point::new(40, 120),
+        //     Point::new(40, 220),
+        //     Point::new(140, 120),
+        // )
+        // .into_styled(blue_with_red_outline);
 
-        let line = Line::new(Point::new(180, 160), Point::new(239, 239))
-            .into_styled(PrimitiveStyle::with_stroke(RgbColor::WHITE, 10));
+        // let line = Line::new(Point::new(180, 160), Point::new(239, 239))
+        //     .into_styled(PrimitiveStyle::with_stroke(RgbColor::WHITE, 10));
 
-        // draw two circles on black background
-        display.clear(Rgb565::BLACK).unwrap();
-        circle1.draw(&mut display).unwrap();
-        circle2.draw(&mut display).unwrap();
-        triangle.draw(&mut display).unwrap();
-        line.draw(&mut display).unwrap();
+        // // draw two circles on black background
+        // display.clear(Rgb565::BLUE).unwrap();
+        // circle1.draw(&mut display).unwrap();
+        // circle2.draw(&mut display).unwrap();
+        // triangle.draw(&mut display).unwrap();
+        // line.draw(&mut display).unwrap();
 
+        // loop {
+        //     continue;
+        // }
+
+        let mut lcd = St7789::new(lcd, 320, 240);
+
+        // LCD controller setup
+        configure_lcd(&mut lcd, &mut delay);
+
+        // Clear
+        lcd.clear(Rgb565::BLACK).unwrap();
+
+        // Turn on display
+        lcd.write(0x29, &[]);
+
+        // Draw some circles
+        let test_colors = [
+            Rgb565::new(0x4e >> 3, 0x79 >> 2, 0xa7 >> 3),
+            Rgb565::new(0xf2 >> 3, 0x8e >> 2, 0x2b >> 3),
+            Rgb565::new(0xe1 >> 3, 0x57 >> 2, 0x59 >> 3),
+            Rgb565::new(0x76 >> 3, 0xb7 >> 2, 0xb2 >> 3),
+            Rgb565::new(0x59 >> 3, 0xa1 >> 2, 0x4f >> 3),
+            Rgb565::new(0xed >> 3, 0xc9 >> 2, 0x48 >> 3),
+            Rgb565::new(0xb0 >> 3, 0x7a >> 2, 0xa1 >> 3),
+            Rgb565::new(0xff >> 3, 0x9d >> 2, 0xa7 >> 3),
+            Rgb565::new(0x9c >> 3, 0x75 >> 2, 0x5f >> 3),
+            Rgb565::new(0xba >> 3, 0xb0 >> 2, 0xac >> 3),
+        ];
+        let center_points = [
+            Point::new(70, 70),
+            Point::new(170, 70),
+            Point::new(170, 170),
+            Point::new(70, 170),
+        ];
+        let mut drawer = ColoredCircleDrawer::new(&center_points, &test_colors);
         loop {
-            continue;
+            drawer.draw(&mut lcd).unwrap();
+            delay.delay_ms(100u16);
         }
     }
 };
 
 /// Simple PWM pin interface
-struct PWMPin<P: OutputPin> {
+struct PWMPin<P> {
     pin: P,
 }
 
@@ -159,5 +209,222 @@ impl<P: OutputPin> PWMPin<P> {
             let _ = self.pin.set_high();
             delay.delay_us(20u8);
         }
+    }
+}
+
+pub fn hard_reset_display<P: OutputPin>(reset_pin: &mut P, delay_source: &mut impl DelayUs<u32>) {
+    let _ = reset_pin.set_high();
+    delay_source.delay_us(10); // ensure the pin change will get registered
+    let _ = reset_pin.set_low();
+    delay_source.delay_us(10); // ensure the pin change will get registered
+    let _ = reset_pin.set_high();
+    delay_source.delay_us(10); // ensure the pin change will get registered
+}
+
+fn configure_lcd<S>(lcd: &mut St7789<S>, delay: &mut Delay)
+where
+    S: SubBank,
+{
+    // Initialize LCD controller
+    // Sleep in
+    lcd.write(0x10, &[]);
+    delay.delay_ms(10u16);
+    // Software reset
+    lcd.write(0x01, &[]);
+    delay.delay_ms(200u16);
+    // Sleep out
+    lcd.write(0x11, &[]);
+    delay.delay_ms(120u16);
+
+    // Memory data access control:
+    // Page address order top to bottom
+    // Column address order left to right
+    // Normal order
+    // Refresh top to bottom
+    // RGB, not BGR
+    // Refresh left to right
+    //lcd.write(0x36, &[0x0]);
+
+    // Color mode 16 bits/pixel
+    lcd.write(0x3a, &[0x05]);
+    // tear thing
+    lcd.write(0x35, &[0x00]);
+    // frame rate
+    lcd.write(0xC6, &[0x1E]);
+    // Positive gamma
+    lcd.write(
+        0xe0,
+        &[
+            0xA2, 0xA, 0x11, 0xA, 0xC, 0x1A, 0x34, 0x22, 0x4D, 0x28, 0x15, 0x13, 0x29, 0x2D,
+        ],
+    );
+    // Negative gamma
+    lcd.write(
+        0xe0,
+        &[
+            0xA2, 0xA, 0x11, 0xA, 0xC, 0x1A, 0x34, 0x22, 0x4D, 0x28, 0x15, 0x13, 0x29, 0x2D,
+        ],
+    );
+    // Display inversion on
+    lcd.write(0x21, &[]);
+    // Display on
+    lcd.write(0x29, &[]);
+
+    /*
+    // Display resolution is 240x240 pixels
+    // Column address range 0 through 239
+    lcd.write(0x2a, &[0x0, 0x0, 0x0, 0xef]);
+    // Row address range 0 through 239
+    lcd.write(0x2b, &[0x0, 0x0, 0x0, 0xef]);
+    // Porch control
+    lcd.write(0xb2, &[0x0c, 0x0c, 0x00, 0x33, 0x33]);
+    // Gate control
+    lcd.write(0xb7, &[0x35]);
+    // VCOM
+    lcd.write(0xbb, &[0x1f]);
+    // LCM control
+    lcd.write(0xc0, &[0x2c]);
+    // VDV and VRH enable
+    lcd.write(0xc2, &[0x01, 0xc3]);
+    // VDV set
+    lcd.write(0xc4, &[0x20]);
+    // Normal mode frame rate control
+    lcd.write(0xc6, &[0x0f]);
+    // Power control
+    lcd.write(0xd0, &[0xa4, 0xa1]);*/
+}
+
+/// Draws colored circles of various locations and colors
+struct ColoredCircleDrawer<'a> {
+    /// Infinite iterator over circle center points
+    centers: Cloned<Cycle<Iter<'a, Point>>>,
+    /// Infinite iterator over Rgb565 colors
+    colors: Cloned<Cycle<Iter<'a, Rgb565>>>,
+}
+
+impl<'a> ColoredCircleDrawer<'a> {
+    pub fn new(centers: &'a [Point], colors: &'a [Rgb565]) -> Self {
+        ColoredCircleDrawer {
+            centers: centers.iter().cycle().cloned(),
+            colors: colors.iter().cycle().cloned(),
+        }
+    }
+
+    /// Draws one circle onto a target
+    pub fn draw<T>(&mut self, target: &mut T) -> Result<(), T::Error>
+    where
+        T: DrawTarget<Rgb565>,
+    {
+        let center = self.centers.next().unwrap();
+        let color = self.colors.next().unwrap();
+
+        Circle::new(center, 50)
+            .into_styled(PrimitiveStyle::with_fill(color))
+            .draw(target)
+    }
+}
+
+/// A simple driver for ST7789-series LCD controllers
+struct St7789<S> {
+    inner: Lcd<S>,
+    width: u16,
+    height: u16,
+}
+
+impl<S> St7789<S>
+where
+    S: SubBank,
+{
+    /// Creates a driver object, but does not perform any initialization
+    pub fn new(inner: Lcd<S>, width: u16, height: u16) -> Self {
+        St7789 {
+            inner,
+            width,
+            height,
+        }
+    }
+
+    pub fn write(&mut self, command: u16, arguments: &[u8]) {
+        // Write the command code
+        self.inner.write_command(command);
+        // Set data/command high to write parameters
+        for &argument in arguments {
+            // Extend argument to 16 bits (the 8 higher bits are ignored)
+            let argument: u16 = argument.into();
+            self.inner.write_data(argument);
+        }
+    }
+
+    pub fn read(&mut self, parameter: u16, buffer: &mut [u8]) {
+        // Write the parameter to read (as a command)
+        self.inner.write_command(parameter);
+        // Dummy read
+        let _ = self.inner.read_data();
+        // Read results
+        for result in buffer {
+            // Read as 16 bits
+            let result_16: u16 = self.inner.read_data();
+            // Truncate to 8 bits
+            *result = result_16 as u8;
+        }
+    }
+
+    fn write_frame_memory<D>(&mut self, data: D)
+    where
+        D: IntoIterator<Item = u16>,
+    {
+        let ramwr_command = 0x2c;
+        self.inner.write_command(ramwr_command);
+        // Set data/command high to write data
+        for argument in data.into_iter() {
+            self.inner.write_data(argument);
+        }
+    }
+
+    /// Sets the ranges of rows and columns to be written by subsequent memory write operations
+    pub fn set_pixel_ranges(&mut self, columns: RangeInclusive<u16>, rows: RangeInclusive<u16>) {
+        // CASET
+        self.write(0x2a, &range_to_args(columns));
+        // RASET
+        self.write(0x2b, &range_to_args(rows));
+    }
+}
+
+/// Converts a range of u16s into 4 bytes of arguments in the form expected by the RASET and
+/// CASET commands
+fn range_to_args(range: RangeInclusive<u16>) -> [u8; 4] {
+    let (min, max) = range.into_inner();
+    // Min high byte, min low byte, max high byte, max low byte
+    [(min >> 8) as u8, min as u8, (max >> 8) as u8, max as u8]
+}
+
+// embedded-graphics compatibility
+impl<S> DrawTarget<Rgb565> for St7789<S>
+where
+    S: SubBank,
+{
+    type Error = Infallible;
+
+    fn draw_pixel(&mut self, Pixel(point, color): Pixel<Rgb565>) -> Result<(), Self::Error> {
+        let x: u16 = point.x.try_into().expect("Pixel X too large");
+        let y: u16 = point.y.try_into().expect("Pixel Y too large");
+        self.set_pixel_ranges(x..=x, y..=y);
+        self.write_frame_memory(iter::once(color.into_storage()));
+        Ok(())
+    }
+
+    fn size(&self) -> Size {
+        Size::new(u32::from(self.width), u32::from(self.height))
+    }
+
+    fn clear(&mut self, color: Rgb565) -> Result<(), Self::Error>
+    where
+        Self: Sized,
+    {
+        self.set_pixel_ranges(0..=(self.width - 1), 0..=(self.height - 1));
+        // Cover the whole display in width * height pixels of the same color
+        let total_pixels = usize::from(self.width) * usize::from(self.height);
+        self.write_frame_memory(iter::repeat(color.into_storage()).take(total_pixels));
+        Ok(())
     }
 }
