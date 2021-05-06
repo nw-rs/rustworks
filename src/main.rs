@@ -5,7 +5,7 @@ extern crate panic_halt;
 
 use rtic::app;
 
-use stm32f7xx_hal::fmc_lcd::{ChipSelect1, FsmcLcd, LcdPins, Timing};
+use stm32f7xx_hal::fmc_lcd::{AccessMode, ChipSelect1, FsmcLcd, LcdPins, Timing};
 use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
 
 use embedded_graphics::pixelcolor::Rgb565;
@@ -99,12 +99,33 @@ const APP: () = {
         lcd_tearing_effect.set_high().unwrap();
         lcd_extd_command.set_high().unwrap();
 
-        let read_timing = Timing::default().data(8).address_setup(8).bus_turnaround(0);
-        let write_timing = Timing::default().data(3).address_setup(3).bus_turnaround(0);
+        let ns_to_cycles = |ns: u32| ns * HCLK_MHZ / 1000 + 1;
 
-        let (_fsmc, lcd) = FsmcLcd::new(dp.FMC, lcd_pins, &clocks, &read_timing, &write_timing);
+        let tedge: u32 = 15;
+        let twc: u32 = 66;
+        let trcfm: u32 = 450;
+        let twrl: u32 = 15;
+        let trdlfm: u32 = 355;
+
+        let trdatast = trdlfm + tedge;
+        let twdatast = twrl + tedge;
+
+        let read_timing = Timing::default()
+            .data(ns_to_cycles(trdatast) as u8)
+            .address_hold(0)
+            .address_setup(ns_to_cycles(trcfm - trdatast) as u8)
+            .bus_turnaround(0)
+            .access_mode(AccessMode::ModeA);
+        let write_timing = Timing::default()
+            .data(ns_to_cycles(twdatast) as u8)
+            .address_hold(0)
+            .address_setup((ns_to_cycles(twc - twdatast) - 1) as u8)
+            .bus_turnaround(0)
+            .access_mode(AccessMode::ModeA);
 
         backlight_control.send_pulses(2, &mut delay);
+
+        let (_fsmc, lcd) = FsmcLcd::new(dp.FMC, lcd_pins, &clocks, &read_timing, &write_timing);
 
         let mut display = ST7789::new(lcd, lcd_reset, 320, 240);
 
