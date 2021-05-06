@@ -103,7 +103,7 @@ const APP: () = {
 
         backlight_control.send_pulses(10, &mut delay);
 
-        let mut display = ST7789::new(lcd, lcd_reset, 320, 240);
+        let mut display = ST7789::new(lcd, lcd_reset, 240, 320);
 
         display.init(&mut delay).unwrap();
 
