@@ -5,13 +5,14 @@ extern crate panic_halt;
 
 use rtic::app;
 
-use stm32f7xx_hal::{fmc_lcd::{AccessMode, ChipSelect1, FsmcLcd, LcdPins, Timing}, gpio::Speed::Medium};
 use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
+use stm32f7xx_hal::{
+    fmc_lcd::{AccessMode, ChipSelect1, FsmcLcd, LcdPins, Timing},
+    gpio::Speed::Medium,
+};
 
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::*;
-use embedded_graphics::style::*;
 
 use st7789::{Orientation, ST7789};
 
@@ -54,13 +55,27 @@ const APP: () = {
         let gpiod = dp.GPIOD.split();
         let gpioe = dp.GPIOE.split();
 
-        let mut red = PWMPin::new(gpiob.pb4.into_push_pull_output());
-        let mut green = PWMPin::new(gpiob.pb5.into_push_pull_output());
-        let mut blue = PWMPin::new(gpiob.pb0.into_push_pull_output());
+        let red_pin = PWMPin::new(gpiob.pb4.into_push_pull_output());
+        let green_pin = PWMPin::new(gpiob.pb5.into_push_pull_output());
+        let blue_pin = PWMPin::new(gpiob.pb0.into_push_pull_output());
 
-        red.send_pulses(20, &mut delay);
-        green.send_pulses(20, &mut delay);
-        blue.send_pulses(20, &mut delay);
+        let mut led = Led {
+            red_pin,
+            green_pin,
+            blue_pin,
+        };
+
+        led.green(&mut delay);
+        delay.delay_ms(250u32);
+        led.red(&mut delay);
+        delay.delay_ms(250u32);
+        led.blue(&mut delay);
+        delay.delay_ms(250u32);
+        led.set_rgb(&mut delay, true, true, false);
+        delay.delay_ms(250u32);
+        led.set_rgb(&mut delay, false, true, true);
+        delay.delay_ms(250u32);
+        led.set_rgb(&mut delay, true, true, true);
 
         let lcd_pins = LcdPins {
             data: (
@@ -151,7 +166,7 @@ const APP: () = {
 };
 
 /// Simple PWM pin interface
-struct PWMPin<P: OutputPin> {
+struct PWMPin<P> {
     pin: P,
 }
 
@@ -167,5 +182,47 @@ impl<P: OutputPin> PWMPin<P> {
             let _ = self.pin.set_high();
             delay.delay_us(20u8);
         }
+    }
+
+    fn off(&mut self) {
+        let _ = self.pin.set_low();
+    }
+}
+
+struct Led<RP: OutputPin, GP: OutputPin, BP: OutputPin> {
+    red_pin: PWMPin<RP>,
+    green_pin: PWMPin<GP>,
+    blue_pin: PWMPin<BP>,
+}
+
+impl<RP: OutputPin, GP: OutputPin, BP: OutputPin> Led<RP, GP, BP> {
+    fn set_rgb(&mut self, delay: &mut Delay, red: bool, green: bool, blue: bool) {
+        if red {
+            self.red_pin.send_pulses(1, delay);
+        } else {
+            self.red_pin.off();
+        }
+        if green {
+            self.green_pin.send_pulses(1, delay);
+        } else {
+            self.green_pin.off();
+        }
+        if blue {
+            self.blue_pin.send_pulses(1, delay);
+        } else {
+            self.blue_pin.off();
+        }
+    }
+
+    fn red(&mut self, delay: &mut Delay) {
+        self.set_rgb(delay, true, false, false)
+    }
+
+    fn green(&mut self, delay: &mut Delay) {
+        self.set_rgb(delay, false, true, false)
+    }
+
+    fn blue(&mut self, delay: &mut Delay) {
+        self.set_rgb(delay, false, false, true)
     }
 }
