@@ -66,16 +66,6 @@ const APP: () = {
         };
 
         led.green(&mut delay);
-        delay.delay_ms(250u32);
-        led.red(&mut delay);
-        delay.delay_ms(250u32);
-        led.blue(&mut delay);
-        delay.delay_ms(250u32);
-        led.set_rgb(&mut delay, true, true, false);
-        delay.delay_ms(250u32);
-        led.set_rgb(&mut delay, false, true, true);
-        delay.delay_ms(250u32);
-        led.set_rgb(&mut delay, true, true, true);
 
         let lcd_pins = LcdPins {
             data: (
@@ -160,7 +150,18 @@ const APP: () = {
         display.clear(Rgb565::BLACK).unwrap();
 
         loop {
-            continue;
+            led.green(&mut delay);
+            delay.delay_ms(250u32);
+            led.red(&mut delay);
+            delay.delay_ms(250u32);
+            led.blue(&mut delay);
+            delay.delay_ms(250u32);
+            led.set_rgb(&mut delay, true, true, false);
+            delay.delay_ms(250u32);
+            led.set_rgb(&mut delay, false, true, true);
+            delay.delay_ms(250u32);
+            led.set_rgb(&mut delay, true, true, true);
+            delay.delay_ms(250u32);
         }
     }
 };
