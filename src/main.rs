@@ -5,7 +5,7 @@ extern crate panic_halt;
 
 use rtic::app;
 
-use stm32f7xx_hal::fmc_lcd::{AccessMode, ChipSelect1, FsmcLcd, LcdPins, Timing};
+use stm32f7xx_hal::{fmc_lcd::{AccessMode, ChipSelect1, FsmcLcd, LcdPins, Timing}, gpio::Speed::Medium};
 use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
 
 use embedded_graphics::pixelcolor::Rgb565;
@@ -64,24 +64,24 @@ const APP: () = {
 
         let lcd_pins = LcdPins {
             data: (
-                gpiod.pd14.into_alternate_af12(),
-                gpiod.pd15.into_alternate_af12(),
-                gpiod.pd0.into_alternate_af12(),
-                gpiod.pd1.into_alternate_af12(),
-                gpioe.pe7.into_alternate_af12(),
-                gpioe.pe8.into_alternate_af12(),
-                gpioe.pe9.into_alternate_af12(),
-                gpioe.pe10.into_alternate_af12(),
-                gpioe.pe11.into_alternate_af12(),
-                gpioe.pe12.into_alternate_af12(),
-                gpioe.pe13.into_alternate_af12(),
-                gpioe.pe14.into_alternate_af12(),
-                gpioe.pe15.into_alternate_af12(),
-                gpiod.pd8.into_alternate_af12(),
-                gpiod.pd9.into_alternate_af12(),
-                gpiod.pd10.into_alternate_af12(),
+                gpiod.pd14.into_alternate_af12().set_speed(Medium),
+                gpiod.pd15.into_alternate_af12().set_speed(Medium),
+                gpiod.pd0.into_alternate_af12().set_speed(Medium),
+                gpiod.pd1.into_alternate_af12().set_speed(Medium),
+                gpioe.pe7.into_alternate_af12().set_speed(Medium),
+                gpioe.pe8.into_alternate_af12().set_speed(Medium),
+                gpioe.pe9.into_alternate_af12().set_speed(Medium),
+                gpioe.pe10.into_alternate_af12().set_speed(Medium),
+                gpioe.pe11.into_alternate_af12().set_speed(Medium),
+                gpioe.pe12.into_alternate_af12().set_speed(Medium),
+                gpioe.pe13.into_alternate_af12().set_speed(Medium),
+                gpioe.pe14.into_alternate_af12().set_speed(Medium),
+                gpioe.pe15.into_alternate_af12().set_speed(Medium),
+                gpiod.pd8.into_alternate_af12().set_speed(Medium),
+                gpiod.pd9.into_alternate_af12().set_speed(Medium),
+                gpiod.pd10.into_alternate_af12().set_speed(Medium),
             ),
-            address: gpiod.pd11.into_alternate_af12(),
+            address: gpiod.pd11.into_alternate_af12().set_speed(Medium),
             read_enable: gpiod.pd4.into_alternate_af12(),
             write_enable: gpiod.pd5.into_alternate_af12(),
             chip_select: ChipSelect1(gpiod.pd7.into_alternate_af12()),
@@ -94,6 +94,8 @@ const APP: () = {
         let lcd_reset = gpioe.pe1.into_push_pull_output();
 
         let mut backlight_control = PWMPin::new(gpioe.pe0.into_push_pull_output());
+
+        backlight_control.send_pulses(2, &mut delay);
 
         lcd_power.set_high().unwrap();
         lcd_tearing_effect.set_high().unwrap();
@@ -110,20 +112,27 @@ const APP: () = {
         let trdatast = trdlfm + tedge;
         let twdatast = twrl + tedge;
 
+        let read_data_cycles = ns_to_cycles(trdatast);
+
+        let read_addrsetup_cycles = ns_to_cycles(trcfm - trdatast);
+
+        let write_data_cycles = ns_to_cycles(twdatast);
+
+        let write_addrsetup_cycles = ns_to_cycles(twc - twdatast) - 1;
+
         let read_timing = Timing::default()
-            .data(ns_to_cycles(trdatast) as u8)
+            .data(read_data_cycles as u8)
             .address_hold(0)
-            .address_setup(ns_to_cycles(trcfm - trdatast) as u8)
-            .bus_turnaround(0)
-            .access_mode(AccessMode::ModeA);
-        let write_timing = Timing::default()
-            .data(ns_to_cycles(twdatast) as u8)
-            .address_hold(0)
-            .address_setup((ns_to_cycles(twc - twdatast) - 1) as u8)
+            .address_setup(read_addrsetup_cycles as u8)
             .bus_turnaround(0)
             .access_mode(AccessMode::ModeA);
 
-        backlight_control.send_pulses(2, &mut delay);
+        let write_timing = Timing::default()
+            .data(write_data_cycles as u8)
+            .address_hold(0)
+            .address_setup(write_addrsetup_cycles as u8)
+            .bus_turnaround(0)
+            .access_mode(AccessMode::ModeA);
 
         let (_fsmc, lcd) = FsmcLcd::new(dp.FMC, lcd_pins, &clocks, &read_timing, &write_timing);
 
@@ -133,32 +142,7 @@ const APP: () = {
 
         display.set_orientation(Orientation::Landscape).unwrap();
 
-        let circle1 = Circle::new(Point::new(128, 64), 64)
-            .into_styled(PrimitiveStyle::with_fill(Rgb565::RED));
-        let circle2 = Circle::new(Point::new(64, 64), 64)
-            .into_styled(PrimitiveStyle::with_stroke(Rgb565::GREEN, 1));
-
-        let blue_with_red_outline = PrimitiveStyleBuilder::new()
-            .fill_color(Rgb565::BLUE)
-            .stroke_color(Rgb565::RED)
-            .stroke_width(1) // > 1 is not currently supported in embedded-graphics on triangles
-            .build();
-        let triangle = Triangle::new(
-            Point::new(40, 120),
-            Point::new(40, 220),
-            Point::new(140, 120),
-        )
-        .into_styled(blue_with_red_outline);
-
-        let line = Line::new(Point::new(180, 160), Point::new(239, 239))
-            .into_styled(PrimitiveStyle::with_stroke(RgbColor::WHITE, 10));
-
-        // draw two circles on black background
         display.clear(Rgb565::BLACK).unwrap();
-        circle1.draw(&mut display).unwrap();
-        circle2.draw(&mut display).unwrap();
-        triangle.draw(&mut display).unwrap();
-        line.draw(&mut display).unwrap();
 
         loop {
             continue;
