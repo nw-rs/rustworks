@@ -423,7 +423,6 @@ version = "0.1.0"
 dependencies = [
  "cortex-m 0.6.7",
  "cortex-m-rtic",
- "display-interface",
  "embedded-graphics",
  "embedded-hal",
  "panic-halt",
