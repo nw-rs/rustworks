@@ -1,15 +1,16 @@
 #![no_std]
 #![no_main]
+#![allow(dead_code)]
 
 extern crate panic_halt;
 
 use rtic::app;
 
 use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
-use stm32f7xx_hal::{
+/*use stm32f7xx_hal::{
     fmc_lcd::{AccessMode, ChipSelect1, FsmcLcd, LcdPins, Timing},
     gpio::Speed::VeryHigh,
-};
+};*/
 
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
@@ -73,30 +74,31 @@ const APP: () = {
 
         led.green(&mut delay);
 
-        /*let lcd = fsmc::FSMC16BitInterface::new(
-            gpiod.pd14.into_floating_input(),
-            gpiod.pd15.into_floating_input(),
-            gpiod.pd0.into_floating_input(),
-            gpiod.pd1.into_floating_input(),
-            gpioe.pe7.into_floating_input(),
-            gpioe.pe8.into_floating_input(),
-            gpioe.pe9.into_floating_input(),
-            gpioe.pe10.into_floating_input(),
-            gpioe.pe11.into_floating_input(),
-            gpioe.pe12.into_floating_input(),
-            gpioe.pe13.into_floating_input(),
-            gpioe.pe14.into_floating_input(),
-            gpioe.pe15.into_floating_input(),
-            gpiod.pd8.into_floating_input(),
-            gpiod.pd9.into_floating_input(),
-            gpiod.pd10.into_floating_input(),
-            gpiod.pd11.into_floating_input(),
-            gpiod.pd5.into_floating_input(),
-            gpiod.pd4.into_floating_input(),
-            gpiod.pd7.into_floating_input(),
-        );*/
+        let lcd = fsmc::FSMC16BitInterface::new(
+            HCLK_MHZ,
+            gpiod.pd14.into_alternate_af12(),
+            gpiod.pd15.into_alternate_af12(),
+            gpiod.pd0.into_alternate_af12(),
+            gpiod.pd1.into_alternate_af12(),
+            gpioe.pe7.into_alternate_af12(),
+            gpioe.pe8.into_alternate_af12(),
+            gpioe.pe9.into_alternate_af12(),
+            gpioe.pe10.into_alternate_af12(),
+            gpioe.pe11.into_alternate_af12(),
+            gpioe.pe12.into_alternate_af12(),
+            gpioe.pe13.into_alternate_af12(),
+            gpioe.pe14.into_alternate_af12(),
+            gpioe.pe15.into_alternate_af12(),
+            gpiod.pd8.into_alternate_af12(),
+            gpiod.pd9.into_alternate_af12(),
+            gpiod.pd10.into_alternate_af12(),
+            gpiod.pd11.into_alternate_af12(),
+            gpiod.pd5.into_alternate_af12(),
+            gpiod.pd4.into_alternate_af12(),
+            gpiod.pd7.into_alternate_af12(),
+        );
 
-        let lcd_pins = LcdPins {
+        /*let lcd_pins = LcdPins {
             data: (
                 gpiod.pd14.into_alternate_af12().set_speed(VeryHigh),
                 gpiod.pd15.into_alternate_af12().set_speed(VeryHigh),
@@ -119,7 +121,7 @@ const APP: () = {
             read_enable: gpiod.pd4.into_alternate_af12(),
             write_enable: gpiod.pd5.into_alternate_af12(),
             chip_select: ChipSelect1(gpiod.pd7.into_alternate_af12()),
-        };
+        };*/
 
         let mut lcd_power = gpioc.pc8.into_push_pull_output();
 
@@ -127,7 +129,7 @@ const APP: () = {
 
         lcd_power.set_high().unwrap();
 
-        let ns_to_cycles = |ns: u32| ns * HCLK_MHZ / 1000 + 1;
+        /*let ns_to_cycles = |ns: u32| ns * HCLK_MHZ / 1000 + 1;
 
         let tedge: u32 = 15;
         let twc: u32 = 66;
@@ -160,7 +162,7 @@ const APP: () = {
             .bus_turnaround(0)
             .access_mode(AccessMode::ModeA);
 
-        let (_fsmc, lcd) = FsmcLcd::new(dp.FMC, lcd_pins, &clocks, &read_timing, &write_timing);
+        let (_fsmc, lcd) = FsmcLcd::new(dp.FMC, lcd_pins, &clocks, &read_timing, &write_timing);*/
 
         let mut display = ST7789::new(lcd, lcd_reset, 320, 240);
 
