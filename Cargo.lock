@@ -423,6 +423,7 @@ version = "0.1.0"
 dependencies = [
  "cortex-m 0.6.7",
  "cortex-m-rtic",
+ "display-interface",
  "embedded-graphics",
  "embedded-hal",
  "panic-halt",
@@ -491,12 +492,12 @@ dependencies = [
 
 [[package]]
 name = "stm32f7"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8e6dbd8bf0965421c0c76c09e05683e71243216bf4d87984c7f95ed53caa28c"
+checksum = "776fb8cd4dd0c5dc44f27bd8d0f02311901f49e5a78260a7205c75be6e3f0490"
 dependencies = [
  "bare-metal",
- "cortex-m 0.6.7",
+ "cortex-m 0.7.2",
  "cortex-m-rt",
  "vcell",
 ]

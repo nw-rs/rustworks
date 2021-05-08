@@ -8,13 +8,15 @@ use rtic::app;
 use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
 use stm32f7xx_hal::{
     fmc_lcd::{AccessMode, ChipSelect1, FsmcLcd, LcdPins, Timing},
-    gpio::Speed::Medium,
+    gpio::Speed::VeryHigh,
 };
 
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 
 use st7789::{Orientation, ST7789};
+
+mod fsmc;
 
 const HCLK_MHZ: u32 = 192;
 
@@ -55,6 +57,10 @@ const APP: () = {
         let gpiod = dp.GPIOD.split();
         let gpioe = dp.GPIOE.split();
 
+        let mut backlight_control = PWMPin::new(gpioe.pe0.into_push_pull_output());
+
+        backlight_control.send_pulses(1, &mut delay);
+
         let red_pin = PWMPin::new(gpiob.pb4.into_push_pull_output());
         let green_pin = PWMPin::new(gpiob.pb5.into_push_pull_output());
         let blue_pin = PWMPin::new(gpiob.pb0.into_push_pull_output());
@@ -67,44 +73,59 @@ const APP: () = {
 
         led.green(&mut delay);
 
+        /*let lcd = fsmc::FSMC16BitInterface::new(
+            gpiod.pd14.into_floating_input(),
+            gpiod.pd15.into_floating_input(),
+            gpiod.pd0.into_floating_input(),
+            gpiod.pd1.into_floating_input(),
+            gpioe.pe7.into_floating_input(),
+            gpioe.pe8.into_floating_input(),
+            gpioe.pe9.into_floating_input(),
+            gpioe.pe10.into_floating_input(),
+            gpioe.pe11.into_floating_input(),
+            gpioe.pe12.into_floating_input(),
+            gpioe.pe13.into_floating_input(),
+            gpioe.pe14.into_floating_input(),
+            gpioe.pe15.into_floating_input(),
+            gpiod.pd8.into_floating_input(),
+            gpiod.pd9.into_floating_input(),
+            gpiod.pd10.into_floating_input(),
+            gpiod.pd11.into_floating_input(),
+            gpiod.pd5.into_floating_input(),
+            gpiod.pd4.into_floating_input(),
+            gpiod.pd7.into_floating_input(),
+        );*/
+
         let lcd_pins = LcdPins {
             data: (
-                gpiod.pd14.into_alternate_af12().set_speed(Medium),
-                gpiod.pd15.into_alternate_af12().set_speed(Medium),
-                gpiod.pd0.into_alternate_af12().set_speed(Medium),
-                gpiod.pd1.into_alternate_af12().set_speed(Medium),
-                gpioe.pe7.into_alternate_af12().set_speed(Medium),
-                gpioe.pe8.into_alternate_af12().set_speed(Medium),
-                gpioe.pe9.into_alternate_af12().set_speed(Medium),
-                gpioe.pe10.into_alternate_af12().set_speed(Medium),
-                gpioe.pe11.into_alternate_af12().set_speed(Medium),
-                gpioe.pe12.into_alternate_af12().set_speed(Medium),
-                gpioe.pe13.into_alternate_af12().set_speed(Medium),
-                gpioe.pe14.into_alternate_af12().set_speed(Medium),
-                gpioe.pe15.into_alternate_af12().set_speed(Medium),
-                gpiod.pd8.into_alternate_af12().set_speed(Medium),
-                gpiod.pd9.into_alternate_af12().set_speed(Medium),
-                gpiod.pd10.into_alternate_af12().set_speed(Medium),
+                gpiod.pd14.into_alternate_af12().set_speed(VeryHigh),
+                gpiod.pd15.into_alternate_af12().set_speed(VeryHigh),
+                gpiod.pd0.into_alternate_af12().set_speed(VeryHigh),
+                gpiod.pd1.into_alternate_af12().set_speed(VeryHigh),
+                gpioe.pe7.into_alternate_af12().set_speed(VeryHigh),
+                gpioe.pe8.into_alternate_af12().set_speed(VeryHigh),
+                gpioe.pe9.into_alternate_af12().set_speed(VeryHigh),
+                gpioe.pe10.into_alternate_af12().set_speed(VeryHigh),
+                gpioe.pe11.into_alternate_af12().set_speed(VeryHigh),
+                gpioe.pe12.into_alternate_af12().set_speed(VeryHigh),
+                gpioe.pe13.into_alternate_af12().set_speed(VeryHigh),
+                gpioe.pe14.into_alternate_af12().set_speed(VeryHigh),
+                gpioe.pe15.into_alternate_af12().set_speed(VeryHigh),
+                gpiod.pd8.into_alternate_af12().set_speed(VeryHigh),
+                gpiod.pd9.into_alternate_af12().set_speed(VeryHigh),
+                gpiod.pd10.into_alternate_af12().set_speed(VeryHigh),
             ),
-            address: gpiod.pd11.into_alternate_af12().set_speed(Medium),
+            address: gpiod.pd11.into_alternate_af12().set_speed(VeryHigh),
             read_enable: gpiod.pd4.into_alternate_af12(),
             write_enable: gpiod.pd5.into_alternate_af12(),
             chip_select: ChipSelect1(gpiod.pd7.into_alternate_af12()),
         };
 
         let mut lcd_power = gpioc.pc8.into_push_pull_output();
-        let mut lcd_extd_command = gpiod.pd6.into_push_pull_output();
-        let mut lcd_tearing_effect = gpiob.pb11.into_push_pull_output();
 
         let lcd_reset = gpioe.pe1.into_push_pull_output();
 
-        let mut backlight_control = PWMPin::new(gpioe.pe0.into_push_pull_output());
-
-        backlight_control.send_pulses(2, &mut delay);
-
         lcd_power.set_high().unwrap();
-        lcd_tearing_effect.set_high().unwrap();
-        lcd_extd_command.set_high().unwrap();
 
         let ns_to_cycles = |ns: u32| ns * HCLK_MHZ / 1000 + 1;
 
@@ -147,21 +168,13 @@ const APP: () = {
 
         display.set_orientation(Orientation::Landscape).unwrap();
 
-        display.clear(Rgb565::BLACK).unwrap();
+        display.clear(Rgb565::BLUE).unwrap();
 
         loop {
-            led.green(&mut delay);
-            delay.delay_ms(250u32);
             led.red(&mut delay);
-            delay.delay_ms(250u32);
-            led.blue(&mut delay);
-            delay.delay_ms(250u32);
-            led.set_rgb(&mut delay, true, true, false);
-            delay.delay_ms(250u32);
-            led.set_rgb(&mut delay, false, true, true);
-            delay.delay_ms(250u32);
-            led.set_rgb(&mut delay, true, true, true);
-            delay.delay_ms(250u32);
+            delay.delay_ms(500u32);
+            led.off();
+            delay.delay_ms(500u32);
         }
     }
 };
@@ -225,5 +238,11 @@ impl<RP: OutputPin, GP: OutputPin, BP: OutputPin> Led<RP, GP, BP> {
 
     fn blue(&mut self, delay: &mut Delay) {
         self.set_rgb(delay, false, false, true)
+    }
+
+    fn off(&mut self) {
+        self.red_pin.off();
+        self.green_pin.off();
+        self.blue_pin.off();
     }
 }
