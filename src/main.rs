@@ -8,6 +8,7 @@ use rtic::app;
 
 use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
 
+use embedded_graphics::image::*;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 
@@ -66,7 +67,7 @@ const APP: () = {
 
         let mut lcd_read_enable = gpiod.pd4.into_push_pull_output();
 
-        lcd_read_enable.set_low().unwrap();
+        lcd_read_enable.set_high().unwrap();
 
         let mut lcd_extd_command = gpiod.pd6.into_push_pull_output();
 
@@ -120,9 +121,16 @@ const APP: () = {
 
         display.init(&mut delay).unwrap();
 
-        display.set_orientation(Orientation::Landscape).unwrap();
+        display
+            .set_orientation(Orientation::LandscapeSwapped)
+            .unwrap();
 
-        display.clear(Rgb565::RED).unwrap();
+        let raw_image_data = ImageRawLE::new(include_bytes!("../ferris.raw"), 86, 64);
+        let ferris = Image::new(&raw_image_data, Point::new(34, 8));
+
+        // draw image on black background
+        display.clear(Rgb565::BLACK).unwrap();
+        ferris.draw(&mut display).unwrap();
 
         loop {
             led.red(&mut delay);
