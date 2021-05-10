@@ -4,6 +4,7 @@
 
 extern crate panic_halt;
 
+use display_interface_parallel_gpio::WriteOnlyDataCommand;
 use rtic::app;
 
 use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
@@ -56,6 +57,10 @@ const APP: () = {
 
         backlight_control.send_pulses(1, &mut delay);
 
+        let mut lcd_power = gpioc.pc8.into_push_pull_output();
+
+        lcd_power.set_high().unwrap();
+
         let red_pin = PWMPin::new(gpiob.pb4.into_push_pull_output());
         let green_pin = PWMPin::new(gpiob.pb5.into_push_pull_output());
         let blue_pin = PWMPin::new(gpiob.pb0.into_push_pull_output());
@@ -94,17 +99,13 @@ const APP: () = {
             gpiod.pd5.into_push_pull_output(),
         );
 
-        let mut lcd_power = gpioc.pc8.into_push_pull_output();
-
         let lcd_reset = gpioe.pe1.into_push_pull_output();
-
-        lcd_power.set_high().unwrap();
 
         let mut display = ST7789::new(lcd_interface, lcd_reset, 320, 240);
 
         display.init(&mut delay).unwrap();
 
-        display.set_orientation(Orientation::Landscape).unwrap();
+        //display.set_orientation(Orientation::Landscape).unwrap();
 
         display.clear(Rgb565::BLUE).unwrap();
 

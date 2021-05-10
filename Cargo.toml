@@ -15,6 +15,7 @@ embedded-hal = "0.2"
 cortex-m-rtic = "0.5.6"
 embedded-graphics = "0.6.1"
 st7789 = { path = "../st7789" }
+#st7789 = "0.5"
 display-interface-parallel-gpio = { path = "../display-interface/parallel-gpio" }
 stm32f7xx-hal = { path = "../stm32f7xx-hal", features = ["stm32f730", "rt"] }
 #stm32f7xx-hal = { path = "../stm32f730-hal", features = ["rt"] }
