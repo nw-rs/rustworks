@@ -4,7 +4,6 @@
 
 extern crate panic_halt;
 
-use display_interface_parallel_gpio::WriteOnlyDataCommand;
 use rtic::app;
 
 use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
@@ -61,6 +60,22 @@ const APP: () = {
 
         lcd_power.set_high().unwrap();
 
+        let mut lcd_chip_select = gpiod.pd7.into_push_pull_output();
+
+        lcd_chip_select.set_low().unwrap();
+
+        let mut lcd_read_enable = gpiod.pd4.into_push_pull_output();
+
+        lcd_read_enable.set_low().unwrap();
+
+        let mut lcd_extd_command = gpiod.pd6.into_push_pull_output();
+
+        lcd_extd_command.set_low().unwrap();
+
+        let mut lcd_tearing_effect = gpiob.pb11.into_push_pull_output();
+
+        lcd_tearing_effect.set_low().unwrap();
+
         let red_pin = PWMPin::new(gpiob.pb4.into_push_pull_output());
         let green_pin = PWMPin::new(gpiob.pb5.into_push_pull_output());
         let blue_pin = PWMPin::new(gpiob.pb0.into_push_pull_output());
@@ -105,9 +120,9 @@ const APP: () = {
 
         display.init(&mut delay).unwrap();
 
-        //display.set_orientation(Orientation::Landscape).unwrap();
+        display.set_orientation(Orientation::Landscape).unwrap();
 
-        display.clear(Rgb565::BLUE).unwrap();
+        display.clear(Rgb565::RED).unwrap();
 
         loop {
             led.red(&mut delay);
