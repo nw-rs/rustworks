@@ -10,11 +10,8 @@ use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
 
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::Rectangle;
-use embedded_graphics::{
-    image::*,
-    style::{PrimitiveStyle, PrimitiveStyleBuilder},
-};
+use embedded_graphics::primitives::*;
+use embedded_graphics::{image::*, style::PrimitiveStyleBuilder};
 
 //use ili9341::{Ili9341, Orientation};
 use st7789::{Orientation, ST7789};
@@ -143,23 +140,45 @@ const APP: () = {
 
         display.clear(Rgb565::BLACK).unwrap();
 
-        let mut x = 0;
+        let mut x = 8;
+        let mut back = false;
+
+        let style = PrimitiveStyleBuilder::new()
+            .fill_color(Rgb565::BLACK)
+            .build();
+
+        let mut ferris = Image::new(&raw_image_data, Point::new(8, 8));
+        let mut clear_forward =
+            Rectangle::new(Point::new(8, 30), Point::new(8, 60)).into_styled(style);
+        let mut clear_back =
+            Rectangle::new(Point::new(94, 30), Point::new(94, 60)).into_styled(style);
 
         led.green(&mut delay);
 
+        let back_point = Point::new(-1, 0);
+        let forward_point = Point::new(1, 0);
+
         loop {
-            let ferris_1 = Image::new(&raw_image_data, Point::new(x, 8));
-            ferris_1.draw(&mut display).unwrap();
-            let clear = Rectangle::new(Point::new(x - 1, 8), Point::new(x - 1, 72)).into_styled(
-                PrimitiveStyleBuilder::new()
-                    .fill_color(Rgb565::BLACK)
-                    .build(),
-            );
-            clear.draw(&mut display).unwrap();
-            if x == 320 {
-                x = 0;
+            ferris.draw(&mut display).unwrap();
+            clear_back.draw(&mut display).unwrap();
+            clear_forward.draw(&mut display).unwrap();
+            if back {
+                clear_forward.draw(&mut display).unwrap();
+                ferris.translate_mut(back_point);
+                clear_back.translate_mut(back_point);
+                clear_forward.translate_mut(back_point);
+                x = x - 1;
             } else {
+                clear_back.draw(&mut display).unwrap();
+                ferris.translate_mut(forward_point);
+                clear_back.translate_mut(forward_point);
+                clear_forward.translate_mut(forward_point);
                 x = x + 1;
+            }
+            if x == 226 {
+                back = true;
+            } else if x == 8 {
+                back = false;
             }
         }
     }
