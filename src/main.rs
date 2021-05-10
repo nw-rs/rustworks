@@ -7,10 +7,6 @@ extern crate panic_halt;
 use rtic::app;
 
 use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
-use stm32f7xx_hal::{
-    fmc_lcd::{AccessMode, ChipSelect1, FsmcLcd, LcdPins, Timing},
-    gpio::Speed::VeryHigh,
-};
 
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
@@ -72,30 +68,31 @@ const APP: () = {
 
         led.green(&mut delay);
 
-        let lcd_pins = LcdPins {
-            data: (
-                gpiod.pd14.into_alternate_af12().set_speed(VeryHigh),
-                gpiod.pd15.into_alternate_af12().set_speed(VeryHigh),
-                gpiod.pd0.into_alternate_af12().set_speed(VeryHigh),
-                gpiod.pd1.into_alternate_af12().set_speed(VeryHigh),
-                gpioe.pe7.into_alternate_af12().set_speed(VeryHigh),
-                gpioe.pe8.into_alternate_af12().set_speed(VeryHigh),
-                gpioe.pe9.into_alternate_af12().set_speed(VeryHigh),
-                gpioe.pe10.into_alternate_af12().set_speed(VeryHigh),
-                gpioe.pe11.into_alternate_af12().set_speed(VeryHigh),
-                gpioe.pe12.into_alternate_af12().set_speed(VeryHigh),
-                gpioe.pe13.into_alternate_af12().set_speed(VeryHigh),
-                gpioe.pe14.into_alternate_af12().set_speed(VeryHigh),
-                gpioe.pe15.into_alternate_af12().set_speed(VeryHigh),
-                gpiod.pd8.into_alternate_af12().set_speed(VeryHigh),
-                gpiod.pd9.into_alternate_af12().set_speed(VeryHigh),
-                gpiod.pd10.into_alternate_af12().set_speed(VeryHigh),
-            ),
-            address: gpiod.pd11.into_alternate_af12().set_speed(VeryHigh),
-            read_enable: gpiod.pd4.into_alternate_af12(),
-            write_enable: gpiod.pd5.into_alternate_af12(),
-            chip_select: ChipSelect1(gpiod.pd7.into_alternate_af12()),
-        };
+        let lcd_bus = display_interface_parallel_gpio::Generic16BitBus::new((
+            gpiod.pd14.into_push_pull_output(),
+            gpiod.pd15.into_push_pull_output(),
+            gpiod.pd0.into_push_pull_output(),
+            gpiod.pd1.into_push_pull_output(),
+            gpioe.pe7.into_push_pull_output(),
+            gpioe.pe8.into_push_pull_output(),
+            gpioe.pe9.into_push_pull_output(),
+            gpioe.pe10.into_push_pull_output(),
+            gpioe.pe11.into_push_pull_output(),
+            gpioe.pe12.into_push_pull_output(),
+            gpioe.pe13.into_push_pull_output(),
+            gpioe.pe14.into_push_pull_output(),
+            gpioe.pe15.into_push_pull_output(),
+            gpiod.pd8.into_push_pull_output(),
+            gpiod.pd9.into_push_pull_output(),
+            gpiod.pd10.into_push_pull_output(),
+        ))
+        .unwrap();
+
+        let lcd_interface = display_interface_parallel_gpio::PGPIO16BitInterface::new(
+            lcd_bus,
+            gpiod.pd11.into_push_pull_output(),
+            gpiod.pd5.into_push_pull_output(),
+        );
 
         let mut lcd_power = gpioc.pc8.into_push_pull_output();
 
@@ -103,42 +100,7 @@ const APP: () = {
 
         lcd_power.set_high().unwrap();
 
-        let ns_to_cycles = |ns: u32| ns * HCLK_MHZ / 1000 + 1;
-
-        let tedge: u32 = 15;
-        let twc: u32 = 66;
-        let trcfm: u32 = 450;
-        let twrl: u32 = 15;
-        let trdlfm: u32 = 355;
-
-        let trdatast = trdlfm + tedge;
-        let twdatast = twrl + tedge;
-
-        let read_data_cycles = ns_to_cycles(trdatast);
-
-        let read_addrsetup_cycles = ns_to_cycles(trcfm - trdatast);
-
-        let write_data_cycles = ns_to_cycles(twdatast);
-
-        let write_addrsetup_cycles = ns_to_cycles(twc - twdatast) - 1;
-
-        let read_timing = Timing::default()
-            .data(read_data_cycles as u8)
-            .address_hold(0)
-            .address_setup(read_addrsetup_cycles as u8)
-            .bus_turnaround(0)
-            .access_mode(AccessMode::ModeA);
-
-        let write_timing = Timing::default()
-            .data(write_data_cycles as u8)
-            .address_hold(0)
-            .address_setup(write_addrsetup_cycles as u8)
-            .bus_turnaround(0)
-            .access_mode(AccessMode::ModeA);
-
-        let (_fsmc, lcd) = FsmcLcd::new(dp.FMC, lcd_pins, &clocks, &read_timing, &write_timing);
-
-        let mut display = ST7789::new(lcd, lcd_reset, 320, 240);
+        let mut display = ST7789::new(lcd_interface, lcd_reset, 320, 240);
 
         display.init(&mut delay).unwrap();
 
