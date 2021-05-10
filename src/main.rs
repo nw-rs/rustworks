@@ -8,10 +8,15 @@ use rtic::app;
 
 use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
 
-use embedded_graphics::image::*;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
+use embedded_graphics::primitives::Rectangle;
+use embedded_graphics::{
+    image::*,
+    style::{PrimitiveStyle, PrimitiveStyleBuilder},
+};
 
+//use ili9341::{Ili9341, Orientation};
 use st7789::{Orientation, ST7789};
 
 const HCLK_MHZ: u32 = 192;
@@ -117,6 +122,15 @@ const APP: () = {
 
         let lcd_reset = gpioe.pe1.into_push_pull_output();
 
+        /*let mut display = Ili9341::new(
+            lcd_interface,
+            lcd_reset,
+            &mut delay,
+            Orientation::Landscape,
+            ili9341::DisplaySize240x320,
+        )
+        .unwrap();*/
+
         let mut display = ST7789::new(lcd_interface, lcd_reset, 320, 240);
 
         display.init(&mut delay).unwrap();
@@ -126,17 +140,27 @@ const APP: () = {
             .unwrap();
 
         let raw_image_data = ImageRawLE::new(include_bytes!("../ferris.raw"), 86, 64);
-        let ferris = Image::new(&raw_image_data, Point::new(34, 8));
 
-        // draw image on black background
         display.clear(Rgb565::BLACK).unwrap();
-        ferris.draw(&mut display).unwrap();
+
+        let mut x = 0;
+
+        led.green(&mut delay);
 
         loop {
-            led.red(&mut delay);
-            delay.delay_ms(500u32);
-            led.off();
-            delay.delay_ms(500u32);
+            let ferris_1 = Image::new(&raw_image_data, Point::new(x, 8));
+            ferris_1.draw(&mut display).unwrap();
+            let clear = Rectangle::new(Point::new(x - 1, 8), Point::new(x - 1, 72)).into_styled(
+                PrimitiveStyleBuilder::new()
+                    .fill_color(Rgb565::BLACK)
+                    .build(),
+            );
+            clear.draw(&mut display).unwrap();
+            if x == 320 {
+                x = 0;
+            } else {
+                x = x + 1;
+            }
         }
     }
 };

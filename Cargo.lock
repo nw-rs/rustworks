@@ -10,6 +10,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ansi-parser"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcb2392079bf27198570d6af79ecbd9ec7d8f16d3ec6b60933922fdb66287127"
+dependencies = [
+ "heapless 0.5.6",
+ "nom",
+]
+
+[[package]]
 name = "as-slice"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -149,7 +159,7 @@ dependencies = [
  "cortex-m-rtic-macros",
  "heapless 0.6.1",
  "rtic-core",
- "version_check",
+ "version_check 0.9.3",
 ]
 
 [[package]]
@@ -236,6 +246,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-text"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "834a6ae98d7760b01f15ea11eb46bcbee582878dd634a64bc9204ae295946adb"
+dependencies = [
+ "ansi-parser",
+ "as-slice",
+ "embedded-graphics",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -260,7 +281,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "501466ecc8a30d1d3b7fc9229b122b2ce8ed6e9d9223f1138d4babb253e51817"
 dependencies = [
  "typenum",
- "version_check",
+ "version_check 0.9.3",
 ]
 
 [[package]]
@@ -313,6 +334,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "memchr"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b16bd47d9e329435e309c58469fe0791c2d0d1ba96ec0954152a5ae2b04387dc"
+
+[[package]]
 name = "micromath"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -332,6 +359,16 @@ name = "nb"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "546c37ac5d9e56f55e73b677106873d9d9f5190605e41a856503623648488cae"
+
+[[package]]
+name = "nom"
+version = "4.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ad2a91a8e869eeb30b9cb3119ae87773a8f4ae617f41b1eb9c154b2905f7bd6"
+dependencies = [
+ "memchr",
+ "version_check 0.1.5",
+]
 
 [[package]]
 name = "num-integer"
@@ -441,6 +478,7 @@ dependencies = [
  "display-interface-parallel-gpio",
  "embedded-graphics",
  "embedded-hal",
+ "embedded-text",
  "panic-halt",
  "st7789",
  "stm32f7xx-hal",
@@ -482,8 +520,6 @@ dependencies = [
 [[package]]
 name = "st7789"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9f2a309b876ab3ac011a437624b439ec22387db20c86e024b5aae8090428623"
 dependencies = [
  "display-interface",
  "embedded-graphics",
@@ -574,6 +610,12 @@ name = "vcell"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77439c1b53d2303b20d9459b1ade71a83c716e3f9c34f3228c00e6f185d6c002"
+
+[[package]]
+name = "version_check"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "914b1a6776c4c929a602fafd8bc742e06365d4bcbe48c30f9cca5824f70dc9dd"
 
 [[package]]
 name = "version_check"
