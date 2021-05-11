@@ -18,6 +18,11 @@ use embedded_text::prelude::*;
 //use ili9341::{Ili9341, Orientation};
 use st7789::{Orientation, ST7789};
 
+mod keypad;
+mod pwm;
+
+use pwm::{Led, PWMPin};
+
 const HCLK_MHZ: u32 = 192;
 
 #[app(device = stm32f7xx_hal::pac, peripherals = true)]
@@ -61,15 +66,11 @@ const APP: () = {
 
         lcd_tearing_effect.set_low().unwrap();
 
-        let red_pin = PWMPin::new(gpiob.pb4.into_push_pull_output());
-        let green_pin = PWMPin::new(gpiob.pb5.into_push_pull_output());
-        let blue_pin = PWMPin::new(gpiob.pb0.into_push_pull_output());
-
-        let mut led = Led {
-            red_pin,
-            green_pin,
-            blue_pin,
-        };
+        let mut led = Led::new(
+            gpiob.pb4.into_push_pull_output(),
+            gpiob.pb5.into_push_pull_output(),
+            gpiob.pb0.into_push_pull_output(),
+        );
 
         led.green(&mut delay);
 
@@ -154,71 +155,3 @@ const APP: () = {
         }
     }
 };
-
-/// Simple PWM pin interface
-struct PWMPin<P> {
-    pin: P,
-}
-
-impl<P: OutputPin> PWMPin<P> {
-    fn new(pin: P) -> Self {
-        Self { pin }
-    }
-
-    fn send_pulses(&mut self, pulses: u32, delay: &mut Delay) {
-        for _ in 0..pulses {
-            let _ = self.pin.set_low();
-            delay.delay_us(20u8);
-            let _ = self.pin.set_high();
-            delay.delay_us(20u8);
-        }
-    }
-
-    fn off(&mut self) {
-        let _ = self.pin.set_low();
-    }
-}
-
-struct Led<RP: OutputPin, GP: OutputPin, BP: OutputPin> {
-    red_pin: PWMPin<RP>,
-    green_pin: PWMPin<GP>,
-    blue_pin: PWMPin<BP>,
-}
-
-impl<RP: OutputPin, GP: OutputPin, BP: OutputPin> Led<RP, GP, BP> {
-    fn set_rgb(&mut self, delay: &mut Delay, red: bool, green: bool, blue: bool) {
-        if red {
-            self.red_pin.send_pulses(1, delay);
-        } else {
-            self.red_pin.off();
-        }
-        if green {
-            self.green_pin.send_pulses(1, delay);
-        } else {
-            self.green_pin.off();
-        }
-        if blue {
-            self.blue_pin.send_pulses(1, delay);
-        } else {
-            self.blue_pin.off();
-        }
-    }
-
-    fn red(&mut self, delay: &mut Delay) {
-        self.set_rgb(delay, true, false, false)
-    }
-
-    fn green(&mut self, delay: &mut Delay) {
-        self.set_rgb(delay, false, true, false)
-    }
-
-    fn blue(&mut self, delay: &mut Delay) {
-        self.set_rgb(delay, false, false, true)
-    }
-
-    fn off(&mut self) {
-        self.red_pin.off();
-        self.green_pin.off();
-        self.blue_pin.off();
-    }
-}
