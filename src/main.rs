@@ -6,12 +6,14 @@ extern crate panic_halt;
 
 use rtic::app;
 
-use stm32f7xx_hal::{delay::Delay, flash::Flash, gpio::GpioExt, pac, prelude::*};
+use stm32f7xx_hal::{delay::Delay, gpio::GpioExt, pac, prelude::*};
 
+use embedded_graphics::fonts::Font6x8;
+use embedded_graphics::image::*;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::*;
-use embedded_graphics::{image::*, style::PrimitiveStyleBuilder};
+use embedded_text::prelude::*;
 
 //use ili9341::{Ili9341, Orientation};
 use st7789::{Orientation, ST7789};
@@ -22,29 +24,9 @@ const HCLK_MHZ: u32 = 192;
 const APP: () = {
     #[init]
     fn init(cx: init::Context) {
-        // Cortex-M peripherals
         let cp: cortex_m::Peripherals = cx.core;
 
-        // Device specific peripherals
         let dp: pac::Peripherals = cx.device;
-
-        let data_str = "This is a message to test if writing to flash works.";
-        let data: &[u8] = data_str.as_bytes();
-
-        let mut flash = Flash::new(dp.FLASH);
-
-        // The flash needs to be unlocked before any erase or program operations.
-        flash.unlock();
-
-        // Erase flash sector 3, which is located at address 0x0800C000
-        flash.blocking_erase_sector(3).unwrap();
-
-        // Program the DATA slice into the flash memory starting at offset 0xC00 from the
-        // beginning of the flash memory.
-        flash.blocking_program(0xC000, data).unwrap();
-
-        // Lock the flash memory to prevent any accidental modification of the flash content.
-        flash.lock();
 
         let rcc = dp.RCC.constrain();
         let clocks = rcc.cfgr.hclk(HCLK_MHZ.mhz()).freeze();
@@ -119,16 +101,15 @@ const APP: () = {
 
         let lcd_reset = gpioe.pe1.into_push_pull_output();
 
-        /*let mut display = Ili9341::new(
+        let display_width = 320i32;
+        let display_height = 240i32;
+
+        let mut display = ST7789::new(
             lcd_interface,
             lcd_reset,
-            &mut delay,
-            Orientation::Landscape,
-            ili9341::DisplaySize240x320,
-        )
-        .unwrap();*/
-
-        let mut display = ST7789::new(lcd_interface, lcd_reset, 320, 240);
+            display_width as u16,
+            display_height as u16,
+        );
 
         display.init(&mut delay).unwrap();
 
@@ -136,50 +117,40 @@ const APP: () = {
             .set_orientation(Orientation::LandscapeSwapped)
             .unwrap();
 
-        let raw_image_data = ImageRawLE::new(include_bytes!("../ferris.raw"), 86, 64);
+        let image_width = 86;
+        let image_height = 64;
+
+        let raw_image_data =
+            ImageRawLE::new(include_bytes!("../ferris.raw"), image_width, image_height);
 
         display.clear(Rgb565::BLACK).unwrap();
 
-        let mut x = 8;
-        let mut back = false;
+        let ferris = Image::new(
+            &raw_image_data,
+            Point::new(
+                display_width - image_width as i32,
+                display_height - image_height as i32,
+            ),
+        );
 
-        let style = PrimitiveStyleBuilder::new()
-            .fill_color(Rgb565::BLACK)
+        ferris.draw(&mut display).unwrap();
+
+        let textbox_style = TextBoxStyleBuilder::new(Font6x8)
+            .text_color(Rgb565::GREEN)
+            .height_mode(FitToText)
             .build();
 
-        let mut ferris = Image::new(&raw_image_data, Point::new(8, 8));
-        let mut clear_forward =
-            Rectangle::new(Point::new(8, 30), Point::new(8, 60)).into_styled(style);
-        let mut clear_back =
-            Rectangle::new(Point::new(94, 30), Point::new(94, 60)).into_styled(style);
+        let bounds = Rectangle::new(Point::new(4, 4), Point::new(display_width, 4));
+
+        let text_box =
+            TextBox::new("Hello from Rust on Numworks!", bounds).into_styled(textbox_style);
+
+        text_box.draw(&mut display).unwrap();
 
         led.green(&mut delay);
 
-        let back_point = Point::new(-1, 0);
-        let forward_point = Point::new(1, 0);
-
         loop {
-            ferris.draw(&mut display).unwrap();
-            clear_back.draw(&mut display).unwrap();
-            clear_forward.draw(&mut display).unwrap();
-            if back {
-                clear_forward.draw(&mut display).unwrap();
-                ferris.translate_mut(back_point);
-                clear_back.translate_mut(back_point);
-                clear_forward.translate_mut(back_point);
-                x = x - 1;
-            } else {
-                clear_back.draw(&mut display).unwrap();
-                ferris.translate_mut(forward_point);
-                clear_back.translate_mut(forward_point);
-                clear_forward.translate_mut(forward_point);
-                x = x + 1;
-            }
-            if x == 226 {
-                back = true;
-            } else if x == 8 {
-                back = false;
-            }
+            continue;
         }
     }
 };

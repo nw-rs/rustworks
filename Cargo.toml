@@ -24,7 +24,15 @@ name = "rustworks"
 test = false
 bench = false
 
+[profile.dev.package."*"]
+opt-level = "z"
+
+[profile.release.package."*"]
+opt-level = "z"
+
 [profile.release]
 codegen-units = 1
 debug = false
+panic = "abort"
+opt-level = "z"
 lto = true
