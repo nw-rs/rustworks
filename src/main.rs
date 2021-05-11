@@ -167,7 +167,7 @@ const APP: () = {
 
         loop {
             let keys = keypad.scan();
-            if !keys.is_empty() {
+            if keys.iter().any(|k| *k) {
                 let text_box = TextBox::new("Keys are pressed!", bounds).into_styled(textbox_style);
                 text_box.draw(&mut display).unwrap();
             } else {
