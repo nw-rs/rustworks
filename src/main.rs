@@ -8,11 +8,11 @@ use rtic::app;
 
 use stm32f7xx_hal::{delay::Delay, gpio::GpioExt, pac, prelude::*};
 
-use embedded_graphics::fonts::Font6x8;
 use embedded_graphics::image::*;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::*;
+use embedded_graphics::{fonts::Font6x8, style::PrimitiveStyleBuilder};
 use embedded_text::prelude::*;
 
 //use ili9341::{Ili9341, Orientation};
@@ -21,6 +21,7 @@ use st7789::{Orientation, ST7789};
 mod keypad;
 mod pwm;
 
+use keypad::Keypad;
 use pwm::{Led, PWMPin};
 
 const HCLK_MHZ: u32 = 192;
@@ -37,10 +38,16 @@ const APP: () = {
         let clocks = rcc.cfgr.hclk(HCLK_MHZ.mhz()).freeze();
         let mut delay = Delay::new(cp.SYST, clocks);
 
+        let gpioa = dp.GPIOA.split();
         let gpioc = dp.GPIOC.split();
         let gpiob = dp.GPIOB.split();
         let gpiod = dp.GPIOD.split();
         let gpioe = dp.GPIOE.split();
+
+        let mut keypad = Keypad::new(
+            gpioa.pa0, gpioa.pa1, gpioa.pa2, gpioa.pa3, gpioa.pa4, gpioa.pa5, gpioa.pa6, gpioa.pa7,
+            gpioa.pa8, gpioc.pc0, gpioc.pc1, gpioc.pc2, gpioc.pc3, gpioc.pc4, gpioc.pc5,
+        );
 
         let mut backlight_control = PWMPin::new(gpioe.pe0.into_push_pull_output());
 
@@ -150,7 +157,22 @@ const APP: () = {
 
         led.green(&mut delay);
 
+        let bounds = Rectangle::new(Point::new(4, 12), Point::new(display_width, 12));
+        let clear_keypress = Rectangle::new(Point::new(4, 12), Point::new(display_width, 19))
+            .into_styled(
+                PrimitiveStyleBuilder::new()
+                    .fill_color(Rgb565::BLACK)
+                    .build(),
+            );
+
         loop {
+            let keys = keypad.scan();
+            if !keys.is_empty() {
+                let text_box = TextBox::new("Keys are pressed!", bounds).into_styled(textbox_style);
+                text_box.draw(&mut display).unwrap();
+            } else {
+                clear_keypress.draw(&mut display).unwrap();
+            }
             continue;
         }
     }

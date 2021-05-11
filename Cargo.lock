@@ -363,15 +363,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "keypad"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d1be1ff723ce6c3b32cfc0ed75188650c58f7e571ff03af38df0816ae90ce1c"
-dependencies = [
- "embedded-hal",
-]
-
-[[package]]
 name = "memchr"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -518,7 +509,6 @@ dependencies = [
  "embedded-hal",
  "embedded-text",
  "heapless 0.7.0",
- "keypad",
  "panic-halt",
  "st7789",
  "stm32f7xx-hal",
