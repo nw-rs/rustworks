@@ -26,13 +26,11 @@ args = [
 ]
 dependencies = ["objcopy"]
 
-[tasks.openocd_flash]
+[tasks.flash]
 command = "openocd"
 args = [
-    "-f", "interface/stlink.cfg",
-    "-f", "target/stm32f7x.cfg",
+    "-f", "openocd.cfg",
     "-c", "init",
-    "-c", "targets",
     "-c", "halt",
     "-c", "flash write_image target/thumbv7em-none-eabihf/release/rustworks",
     "-c", "reset run",
@@ -40,7 +38,7 @@ args = [
 ]
 dependencies = ["build"]
 
-[tasks.flash]
+[tasks.stflash]
 command = "st-flash"
 args = [
     "--reset",
