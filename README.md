@@ -20,6 +20,8 @@ brew install dfu-util
 rustup component add llvm-tools-preview
 cargo install cargo-binutils
 cargo install cargo-make
+
+# If you have an STLink debugger and can connect it to the calculator install `probe-run` for faster flashing and easy debugging.
 cargo install probe-run
 ```
 
