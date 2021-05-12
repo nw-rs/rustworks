@@ -20,6 +20,7 @@ brew install dfu-util
 rustup component add llvm-tools-preview
 cargo install cargo-binutils
 cargo install cargo-make
+cargo install probe-run
 ```
 
 ## DFU Flash
@@ -30,40 +31,17 @@ Complete setup, plug in your calculator and put it into dfu mode (press 6 and re
 cargo make dfu
 ```
 
-## STLink Flash
+## STLink
 
 If you have an STLink debugger (I am using the STLink V3SET) you can flash faster by using one of the following:
 
-If you have [OpenOCD](http://openocd.org) installed you can use:
+### Flash
 ```zsh
-cargo make flash
+cargo flash
 ```
 
-If you have the [STLink Tools](https://github.com/stlink-org/stlink) installed you can use:
+### Debug
 ```zsh
-cargo make stflash
+cargo run
 ```
 
-## OpenOCD
-
-#### Installing OpenOCD
-
-For macOS:
-```zsh
-brew install openocd
-```
-
-For Ubuntu:
-```zsh
-sudo apt-get install openocd
-```
-
-#### Using OpenOCD
-
-If you have an STLink debugger and [OpenOCD](http://openocd.org) installed you can easily run and debug code.
-To start, launch an OpenOCD session by entering the repository's directory and running the following:
-```zsh
-openocd
-```
-
-In another terminal window go to the repository's directory and execute `cargo run` which will launch a GDB session connected to the previously launched OpenOCD session and automatically upload the new binary.

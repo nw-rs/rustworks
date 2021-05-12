@@ -5,7 +5,7 @@ use stm32f7xx_hal::gpio::{
 use stm32f7xx_hal::gpio::{Input, Output, PullUp, PushPull};
 use stm32f7xx_hal::{
     gpio::gpioa::{PA, PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PA8},
-    prelude::{InputPin, OutputPin},
+    prelude::InputPin,
 };
 
 pub struct Keypad {
@@ -59,13 +59,11 @@ impl Keypad {
     pub fn scan(&mut self) -> [bool; 54] {
         let mut keys: [bool; 54] = [false; 54];
         let mut pos = 0usize;
-        for row in self.rows.iter_mut() {
-            row.set_high().unwrap();
+        for _row in self.rows.iter_mut() {
             for column in self.columns.iter() {
                 *keys.get_mut(pos).unwrap() = column.is_low().unwrap();
                 pos = pos + 1;
             }
-            row.set_low().unwrap();
         }
         keys
     }

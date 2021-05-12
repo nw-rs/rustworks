@@ -11,7 +11,7 @@ homepage = "https://github.com/willemml/rustworks"
 [dependencies]
 cortex-m = "0.6"
 panic-halt = "0.2"
-cortex-m-semihosting = "0.3"
+rtt-target = { version = "0.3", features = ["cortex-m"] }
 embedded-hal = "0.2"
 cortex-m-rtic = "0.5"
 embedded-graphics = "0.6"
@@ -31,7 +31,7 @@ opt-level = "s"
 
 [profile.dev]
 opt-level = "s"
-debug = false
+debug = 1
 debug-assertions = false
 overflow-checks = false
 lto = true
@@ -45,7 +45,7 @@ opt-level = "s"
 
 [profile.release]
 codegen-units = 1
-debug = false
+debug = 1
 panic = "abort"
 opt-level = "s"
 lto = true
