@@ -5,7 +5,7 @@
 extern crate panic_halt;
 use rtt_target::{rprintln, rtt_init_print};
 
-//use core::fmt::Write;
+use core::fmt::Write;
 
 use rtic::app;
 
@@ -17,7 +17,7 @@ use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::*;
 use embedded_text::prelude::*;
 
-//use heapless::String;
+use heapless::String;
 
 use st7789::{Orientation, ST7789};
 
@@ -147,16 +147,20 @@ const APP: () = {
 
         led.green(&mut delay);
 
-        //let bounds = Rectangle::new(Point::new(4, 12), Point::new(display_width, 12));
+        let bounds = Rectangle::new(Point::new(4, 12), Point::new(display_width, 12));
 
         loop {
             let keys = keypad.scan();
             if keys.iter().any(|k| *k) {
+                let mut pressed_string: String<184> = String::new();
                 for (i, pressed) in keys.iter().enumerate() {
                     if *pressed {
+                        write!(&mut pressed_string, "{}, ", i).unwrap();
                         rprintln!("pressed: {}", i);
                     }
                 }
+                let text_box = TextBox::new(&pressed_string, bounds).into_styled(textbox_style);
+                text_box.draw(&mut display).unwrap();
             }
         }
     }
