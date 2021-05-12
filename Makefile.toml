@@ -1,6 +1,13 @@
+[tasks.build]
+command = "cargo"
+args = [
+    "build",
+    "--release"
+]
+
 [tasks.objcopy]
 command = "cargo"
-args= [
+args = [
     "objcopy",
     "--bin", "rustworks",
     "--release",
@@ -16,5 +23,29 @@ args = [
     "-a", "0",
     "-s", "0x08000000:leave",
     "-D", "target/thumbv7em-none-eabihf/release/rustworks.bin"
+]
+dependencies = ["objcopy"]
+
+[tasks.openocd_flash]
+command = "openocd"
+args = [
+    "-f", "interface/stlink.cfg",
+    "-f", "target/stm32f7x.cfg",
+    "-c", "init",
+    "-c", "targets",
+    "-c", "halt",
+    "-c", "flash write_image target/thumbv7em-none-eabihf/release/rustworks",
+    "-c", "reset run",
+    "-c", "shutdown",
+]
+dependencies = ["build"]
+
+[tasks.flash]
+command = "st-flash"
+args = [
+    "--reset",
+     "write",
+     "target/thumbv7em-none-eabihf/release/rustworks.bin",
+     "0x08000000",
 ]
 dependencies = ["objcopy"]

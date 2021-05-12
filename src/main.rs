@@ -3,19 +3,22 @@
 #![allow(dead_code)]
 
 extern crate panic_halt;
+use cortex_m_semihosting::hprintln;
+
+use core::fmt::Write;
 
 use rtic::app;
 
 use stm32f7xx_hal::{delay::Delay, gpio::GpioExt, pac, prelude::*};
 
-use embedded_graphics::image::*;
+use embedded_graphics::fonts::Font6x8;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::*;
-use embedded_graphics::{fonts::Font6x8, style::PrimitiveStyleBuilder};
 use embedded_text::prelude::*;
 
-//use ili9341::{Ili9341, Orientation};
+use heapless::String;
+
 use st7789::{Orientation, ST7789};
 
 mod keypad;
@@ -30,6 +33,7 @@ const HCLK_MHZ: u32 = 192;
 const APP: () = {
     #[init]
     fn init(cx: init::Context) {
+        //let _ = hprintln!("Starting...");
         let cp: cortex_m::Peripherals = cx.core;
 
         let dp: pac::Peripherals = cx.device;
@@ -125,55 +129,38 @@ const APP: () = {
             .set_orientation(Orientation::LandscapeSwapped)
             .unwrap();
 
-        let image_width = 86;
-        let image_height = 64;
-
-        let raw_image_data =
-            ImageRawLE::new(include_bytes!("../ferris.raw"), image_width, image_height);
-
         display.clear(Rgb565::BLACK).unwrap();
-
-        let ferris = Image::new(
-            &raw_image_data,
-            Point::new(
-                display_width - image_width as i32,
-                display_height - image_height as i32,
-            ),
-        );
-
-        ferris.draw(&mut display).unwrap();
 
         let textbox_style = TextBoxStyleBuilder::new(Font6x8)
             .text_color(Rgb565::GREEN)
+            .background_color(Rgb565::BLACK)
             .height_mode(FitToText)
             .build();
 
         let bounds = Rectangle::new(Point::new(4, 4), Point::new(display_width, 4));
 
-        let text_box =
-            TextBox::new("Hello from Rust on Numworks!", bounds).into_styled(textbox_style);
+        let text_box = TextBox::new("Hello from Rust on Numworks! Keys pressed:", bounds)
+            .into_styled(textbox_style);
 
         text_box.draw(&mut display).unwrap();
 
         led.green(&mut delay);
 
         let bounds = Rectangle::new(Point::new(4, 12), Point::new(display_width, 12));
-        let clear_keypress = Rectangle::new(Point::new(4, 12), Point::new(display_width, 19))
-            .into_styled(
-                PrimitiveStyleBuilder::new()
-                    .fill_color(Rgb565::BLACK)
-                    .build(),
-            );
 
         loop {
             let keys = keypad.scan();
             if keys.iter().any(|k| *k) {
-                let text_box = TextBox::new("Keys are pressed!", bounds).into_styled(textbox_style);
+                let mut pressed_string: String<184> = String::new();
+                for (i, pressed) in keys.iter().enumerate() {
+                    if *pressed {
+                        write!(&mut pressed_string, "{}, ", i).unwrap();
+                    }
+                }
+                let text_box = TextBox::new(&pressed_string, bounds).into_styled(textbox_style);
                 text_box.draw(&mut display).unwrap();
-            } else {
-                clear_keypress.draw(&mut display).unwrap();
+                //let _ = hprintln!("Keys pressed...");
             }
-            continue;
         }
     }
 };
