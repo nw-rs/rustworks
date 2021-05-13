@@ -22,7 +22,7 @@ impl KeyColumns {
     fn read(&self) -> u8 {
         // SAFETY: Atomic read with no side effects
         let columns = unsafe { (*stm32f7xx_hal::pac::GPIOC::ptr()).idr.read().bits() };
-        columns as u8 & 0x3f
+        columns as u8
     }
 }
 
@@ -96,17 +96,18 @@ impl Keypad {
     }
 
     pub fn scan(&mut self, delay: &mut impl DelayUs<u32>) -> [u8; 9] {
-        let mut rows: [u8; 9] = [0; 9];
-        for (n, row) in self.rows.iter_mut().enumerate() {
-            row.set_low().unwrap();
+        let mut state = [
+            0b111111, 0b000101, 0b111111, 0b111111, 0b111111, 0b011111, 0b011111, 0b011111,
+            0b011111,
+        ];
+
+        for (row_pin, row_state) in self.rows.iter_mut().zip(&mut state) {
+            row_pin.set_low().unwrap();
             delay.delay_us(10);
-            rows[n] = self.columns.read();
-            row.set_high().unwrap();
+            *row_state &= !self.columns.read();
+            row_pin.set_high().unwrap();
         }
-        rows[1] &= 0b000101;
-        for row in rows[5..].iter_mut() {
-            *row &= 0b011111;
-        }
-        rows
+
+        state
     }
 }
