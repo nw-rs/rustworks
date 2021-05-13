@@ -71,12 +71,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "byte-slice-cast"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0a5e3906bcbf133e33c1d4d95afc664ad37fbdb9f6568d8043e7ea8c27d93d3"
-
-[[package]]
 name = "byteorder"
 version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -203,15 +197,15 @@ checksum = "c816f778ec2147f95990a606795fe9dcc82781bcd98e222675c4103c2d250ea1"
 
 [[package]]
 name = "display-interface"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da12a892db5cce95ae247e8803dc653b1a73da3b0450f7983eb518dd54f583cf"
+checksum = "7517c040926d7b02b111884aa089177db80878533127f7c1b480d852c5fb4112"
 
 [[package]]
 name = "display-interface-parallel-gpio"
 version = "0.5.0"
+source = "git+https://github.com/therealprof/display-interface?branch=master#715c958952a222683a0b8d5e439434cbdcc58354"
 dependencies = [
- "byte-slice-cast",
  "display-interface",
  "embedded-hal",
 ]
