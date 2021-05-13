@@ -27,7 +27,7 @@ mod pwm;
 use keypad::Keypad;
 use pwm::{Led, PWMPin};
 
-const HCLK_MHZ: u32 = 192;
+const HCLK_MHZ: u32 = 216;
 
 #[app(device = stm32f7xx_hal::pac, peripherals = true)]
 const APP: () = {
@@ -147,20 +147,25 @@ const APP: () = {
 
         led.green(&mut delay);
 
-        let bounds = Rectangle::new(Point::new(4, 12), Point::new(display_width, 12));
+        let text_box_tl = Point::new(4, 12);
+        let text_box_tr = Point::new(display_width - 4, 12);
 
-        let mut last_pressed = 0u64;
+        let bounds = Rectangle::new(text_box_tl, text_box_tr);
+
+        let mut last_pressed = [0u8; 9];
 
         loop {
             let keys = keypad.scan(&mut delay);
-            let mut pressed_string: String<184> = String::new();
-            write!(&mut pressed_string, "pressed: {:b}", keys).unwrap();
             if keys != last_pressed {
+                let mut pressed_string: String<184> = String::new();
+                for row in 0..9 {
+                    write!(&mut pressed_string, "{:006b}\n", keys[row]).unwrap();
+                }
                 rprintln!("{}", pressed_string);
                 last_pressed = keys;
+                let text_box = TextBox::new(&pressed_string, bounds).into_styled(textbox_style);
+                text_box.draw(&mut display).unwrap();
             }
-            let text_box = TextBox::new(&pressed_string, bounds).into_styled(textbox_style);
-            text_box.draw(&mut display).unwrap();
         }
     }
 };

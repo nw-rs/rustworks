@@ -1,24 +1,36 @@
 use embedded_hal::blocking::delay::DelayUs;
-use stm32f7xx_hal::{
-    delay::Delay,
-    gpio::{Input, OpenDrain, Output, PullUp, PushPull},
-};
-use stm32f7xx_hal::{
-    gpio::gpioa::{PA, PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PA8},
-    prelude::InputPin,
-};
+use stm32f7xx_hal::gpio::gpioa::{PA, PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PA8};
+use stm32f7xx_hal::gpio::{Input, OpenDrain, Output, PullUp};
 use stm32f7xx_hal::{
     gpio::{
-        gpioc::{PC, PC0, PC1, PC2, PC3, PC4, PC5},
+        gpioc::{PC0, PC1, PC2, PC3, PC4, PC5},
         Floating,
     },
     prelude::OutputPin,
 };
 
+struct KeyColumns(
+    PC0<Input<PullUp>>,
+    PC1<Input<PullUp>>,
+    PC2<Input<PullUp>>,
+    PC3<Input<PullUp>>,
+    PC4<Input<PullUp>>,
+    PC5<Input<PullUp>>,
+);
+
+impl KeyColumns {
+    fn read(&self) -> u8 {
+        // SAFETY: Atomic read with no side effects
+        let columns = unsafe { (*stm32f7xx_hal::pac::GPIOC::ptr()).idr.read().bits() };
+        columns as u8 & 0x3f
+    }
+}
+
 pub struct Keypad {
     rows: [PA<Output<OpenDrain>>; 9],
-    columns: [PC<Input<PullUp>>; 6],
+    columns: KeyColumns,
 }
+
 type MODE = Input<Floating>;
 
 impl Keypad {
@@ -71,43 +83,30 @@ impl Keypad {
             r8.downgrade(),
         ];
 
-        let columns = [
-            pc0.into_pull_up_input().downgrade(),
-            pc1.into_pull_up_input().downgrade(),
-            pc2.into_pull_up_input().downgrade(),
-            pc3.into_pull_up_input().downgrade(),
-            pc4.into_pull_up_input().downgrade(),
-            pc5.into_pull_up_input().downgrade(),
-        ];
+        let columns = KeyColumns(
+            pc0.into_pull_up_input(),
+            pc1.into_pull_up_input(),
+            pc2.into_pull_up_input(),
+            pc3.into_pull_up_input(),
+            pc4.into_pull_up_input(),
+            pc5.into_pull_up_input(),
+        );
 
         Self { rows, columns }
     }
 
-    pub fn scan(&mut self, delay: &mut impl DelayUs<u32>) -> u64 {
-        let mut state: u64 = 0;
-        for row in self.rows.iter_mut() {
-            row.set_low().unwrap();
-            delay.delay_us(100);
-            let mut columns: u8 = 0;
-            for column in self.columns.iter() {
-                columns <<= 1;
-                if column.is_low().unwrap() {
-                    columns |= 1;
-                }
-            }
-            row.set_high().unwrap();
-            state = (state << 6) | (columns) as u64;
-        }
-        state & 0x1F7DF7FFFFF17F
-    }
-
-    fn activate_row(&mut self, row_number: usize) {
+    pub fn scan(&mut self, delay: &mut impl DelayUs<u32>) -> [u8; 9] {
+        let mut rows: [u8; 9] = [0; 9];
         for (n, row) in self.rows.iter_mut().enumerate() {
-            if n == row_number {
-                row.set_high().unwrap();
-            } else {
-                row.set_high().unwrap();
-            }
+            row.set_low().unwrap();
+            delay.delay_us(10);
+            rows[n] = self.columns.read();
+            row.set_high().unwrap();
         }
+        rows[1] &= 0b000101;
+        for row in rows[5..].iter_mut() {
+            *row &= 0b011111;
+        }
+        rows
     }
 }
