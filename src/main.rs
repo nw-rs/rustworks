@@ -17,15 +17,15 @@ use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::*;
 use embedded_text::prelude::*;
 
-use heapless::String;
+use heapless::{String, Vec};
 
 use st7789::{Orientation, ST7789};
 
 mod keypad;
-mod pwm;
+mod led;
 
-use keypad::Keypad;
-use pwm::{Led, PWMPin};
+use keypad::{Key, Keypad};
+use led::Led;
 
 const HCLK_MHZ: u32 = 216;
 
@@ -54,9 +54,10 @@ const APP: () = {
             gpioa.pa8, gpioc.pc0, gpioc.pc1, gpioc.pc2, gpioc.pc3, gpioc.pc4, gpioc.pc5,
         );
 
-        let mut backlight_control = PWMPin::new(gpioe.pe0.into_push_pull_output());
+        let mut backlight_control = gpioe.pe0.into_push_pull_output();
 
-        backlight_control.send_pulses(1, &mut delay);
+        let mut backlight_state = true;
+        backlight_control.set_high().unwrap();
 
         let mut lcd_power = gpioc.pc8.into_push_pull_output();
 
@@ -84,7 +85,7 @@ const APP: () = {
             gpiob.pb0.into_push_pull_output(),
         );
 
-        led.green(&mut delay);
+        led.blue();
 
         let lcd_bus = display_interface_parallel_gpio::Generic16BitBus::new((
             gpiod.pd14.into_push_pull_output(),
@@ -145,26 +146,40 @@ const APP: () = {
 
         text_box.draw(&mut display).unwrap();
 
-        led.green(&mut delay);
+        led.green();
 
         let text_box_tl = Point::new(4, 12);
         let text_box_tr = Point::new(display_width - 4, 12);
 
         let bounds = Rectangle::new(text_box_tl, text_box_tr);
 
-        let mut last_pressed = [0u8; 9];
+        let mut last_pressed: Vec<Key, 46> = Vec::new();
 
         loop {
-            let keys = keypad.scan(&mut delay);
+            let keys = keypad.pressed(&mut delay);
             if keys != last_pressed {
-                let mut pressed_string: String<184> = String::new();
-                for row in 0..9 {
-                    write!(&mut pressed_string, "{:006b}\n", keys[row]).unwrap();
+                if keys.contains(&Key::Power) {
+                    if backlight_state {
+                        backlight_control.set_low().unwrap();
+                        backlight_state = false;
+                    } else {
+                        backlight_control.set_high().unwrap();
+                        backlight_state = true;
+                    }
                 }
-                rprintln!("{}", pressed_string);
+                if !keys.is_empty() {
+                    let mut pressed_string: String<184> = String::new();
+                    write!(
+                        &mut pressed_string,
+                        "{:?}\t\t\t\t\t\t\t\t\t\t\t\t\t\n",
+                        keys
+                    )
+                    .unwrap();
+                    rprintln!("{}", pressed_string);
+                    let text_box = TextBox::new(&pressed_string, bounds).into_styled(textbox_style);
+                    text_box.draw(&mut display).unwrap();
+                }
                 last_pressed = keys;
-                let text_box = TextBox::new(&pressed_string, bounds).into_styled(textbox_style);
-                text_box.draw(&mut display).unwrap();
             }
         }
     }

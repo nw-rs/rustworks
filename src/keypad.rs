@@ -1,4 +1,7 @@
 use embedded_hal::blocking::delay::DelayUs;
+use heapless::Vec;
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 use stm32f7xx_hal::gpio::gpioa::{PA, PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PA8};
 use stm32f7xx_hal::gpio::{Input, OpenDrain, Output, PullUp};
 use stm32f7xx_hal::{
@@ -8,6 +11,57 @@ use stm32f7xx_hal::{
     },
     prelude::OutputPin,
 };
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, FromPrimitive)]
+#[repr(u8)]
+pub enum Key {
+    Left = 0x01,
+    Up = 0x02,
+    Down = 0x03,
+    Right = 0x04,
+    Ok = 0x05,
+    Back = 0x06,
+    Home = 0x11,
+    Power = 0x13,
+    Shift = 0x21,
+    Alpha = 0x22,
+    XNT = 0x23,
+    Var = 0x24,
+    Toolbox = 0x25,
+    Delete = 0x26,
+    E = 0x31,
+    Ln = 0x32,
+    Log = 0x33,
+    I = 0x34,
+    Comma = 0x35,
+    Pow = 0x36,
+    Sin = 0x41,
+    Cos = 0x42,
+    Tan = 0x43,
+    Pi = 0x44,
+    Sqrt = 0x45,
+    Square = 0x46,
+    Seven = 0x51,
+    Eight = 0x52,
+    Nine = 0x53,
+    LBracket = 0x54,
+    RBracket = 0x55,
+    Four = 0x61,
+    Five = 0x62,
+    Six = 0x63,
+    Multiply = 0x64,
+    Divide = 0x65,
+    One = 0x71,
+    Two = 0x72,
+    Three = 0x73,
+    Add = 0x74,
+    Subtract = 0x75,
+    Zero = 0x81,
+    Dot = 0x82,
+    EE = 0x83,
+    Ans = 0x84,
+    EXE = 0x85,
+}
 
 struct KeyColumns(
     PC0<Input<PullUp>>,
@@ -109,5 +163,34 @@ impl Keypad {
         }
 
         state
+    }
+
+    pub fn pressed(&mut self, delay: &mut impl DelayUs<u32>) -> Vec<Key, 46> {
+        let mut keys: Vec<Key, 46> = Vec::new();
+        let state = self.scan(delay);
+        for (n, row) in state.iter().enumerate() {
+            let start = 0x10 * n as u8;
+            for col in [1u8, 2, 4, 8, 16, 32].iter() {
+                if let Some(key) = row_to_key(start, *row, *col) {
+                    keys.push(key).unwrap();
+                }
+            }
+        }
+        keys
+    }
+}
+
+fn row_to_key(start: u8, row: u8, col: u8) -> Option<Key> {
+    let key = match col {
+        4 => 3,
+        8 => 4,
+        16 => 5,
+        32 => 6,
+        _ => col,
+    };
+    if row & col == col {
+        Key::from_u8(start + key)
+    } else {
+        None
     }
 }
