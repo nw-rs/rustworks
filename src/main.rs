@@ -149,19 +149,18 @@ const APP: () = {
 
         let bounds = Rectangle::new(Point::new(4, 12), Point::new(display_width, 12));
 
+        let mut last_pressed = 0u64;
+
         loop {
-            let keys = keypad.scan();
-            if keys.iter().any(|k| *k) {
-                let mut pressed_string: String<184> = String::new();
-                for (i, pressed) in keys.iter().enumerate() {
-                    if *pressed {
-                        write!(&mut pressed_string, "{}, ", i).unwrap();
-                        rprintln!("pressed: {}", i);
-                    }
-                }
-                let text_box = TextBox::new(&pressed_string, bounds).into_styled(textbox_style);
-                text_box.draw(&mut display).unwrap();
+            let keys = keypad.scan(&mut delay);
+            let mut pressed_string: String<184> = String::new();
+            write!(&mut pressed_string, "pressed: {:b}", keys).unwrap();
+            if keys != last_pressed {
+                rprintln!("{}", pressed_string);
+                last_pressed = keys;
             }
+            let text_box = TextBox::new(&pressed_string, bounds).into_styled(textbox_style);
+            text_box.draw(&mut display).unwrap();
         }
     }
 };

@@ -1,15 +1,22 @@
-use stm32f7xx_hal::gpio::{
-    gpioc::{PC, PC0, PC1, PC2, PC3, PC4, PC5},
-    Floating,
+use embedded_hal::blocking::delay::DelayUs;
+use stm32f7xx_hal::{
+    delay::Delay,
+    gpio::{Input, OpenDrain, Output, PullUp, PushPull},
 };
-use stm32f7xx_hal::gpio::{Input, Output, PullUp, PushPull};
 use stm32f7xx_hal::{
     gpio::gpioa::{PA, PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PA8},
     prelude::InputPin,
 };
+use stm32f7xx_hal::{
+    gpio::{
+        gpioc::{PC, PC0, PC1, PC2, PC3, PC4, PC5},
+        Floating,
+    },
+    prelude::OutputPin,
+};
 
 pub struct Keypad {
-    rows: [PA<Output<PushPull>>; 9],
+    rows: [PA<Output<OpenDrain>>; 9],
     columns: [PC<Input<PullUp>>; 6],
 }
 type MODE = Input<Floating>;
@@ -32,16 +39,36 @@ impl Keypad {
         pc4: PC4<MODE>,
         pc5: PC5<MODE>,
     ) -> Self {
+        let mut r0 = pa1.into_open_drain_output();
+        let mut r1 = pa0.into_open_drain_output();
+        let mut r2 = pa2.into_open_drain_output();
+        let mut r3 = pa3.into_open_drain_output();
+        let mut r4 = pa4.into_open_drain_output();
+        let mut r5 = pa5.into_open_drain_output();
+        let mut r6 = pa6.into_open_drain_output();
+        let mut r7 = pa7.into_open_drain_output();
+        let mut r8 = pa8.into_open_drain_output();
+
+        r0.set_high().unwrap();
+        r1.set_high().unwrap();
+        r2.set_high().unwrap();
+        r3.set_high().unwrap();
+        r4.set_high().unwrap();
+        r5.set_high().unwrap();
+        r6.set_high().unwrap();
+        r7.set_high().unwrap();
+        r8.set_high().unwrap();
+
         let rows = [
-            pa1.into_push_pull_output().downgrade(),
-            pa0.into_push_pull_output().downgrade(),
-            pa2.into_push_pull_output().downgrade(),
-            pa3.into_push_pull_output().downgrade(),
-            pa4.into_push_pull_output().downgrade(),
-            pa5.into_push_pull_output().downgrade(),
-            pa6.into_push_pull_output().downgrade(),
-            pa7.into_push_pull_output().downgrade(),
-            pa8.into_push_pull_output().downgrade(),
+            r0.downgrade(),
+            r1.downgrade(),
+            r2.downgrade(),
+            r3.downgrade(),
+            r4.downgrade(),
+            r5.downgrade(),
+            r6.downgrade(),
+            r7.downgrade(),
+            r8.downgrade(),
         ];
 
         let columns = [
@@ -56,15 +83,31 @@ impl Keypad {
         Self { rows, columns }
     }
 
-    pub fn scan(&mut self) -> [bool; 54] {
-        let mut keys: [bool; 54] = [false; 54];
-        let mut pos = 0usize;
-        for _row in self.rows.iter_mut() {
+    pub fn scan(&mut self, delay: &mut impl DelayUs<u32>) -> u64 {
+        let mut state: u64 = 0;
+        for row in self.rows.iter_mut() {
+            row.set_low().unwrap();
+            delay.delay_us(100);
+            let mut columns: u8 = 0;
             for column in self.columns.iter() {
-                *keys.get_mut(pos).unwrap() = column.is_low().unwrap();
-                pos = pos + 1;
+                columns <<= 1;
+                if column.is_low().unwrap() {
+                    columns |= 1;
+                }
+            }
+            row.set_high().unwrap();
+            state = (state << 6) | (columns) as u64;
+        }
+        state & 0x1F7DF7FFFFF17F
+    }
+
+    fn activate_row(&mut self, row_number: usize) {
+        for (n, row) in self.rows.iter_mut().enumerate() {
+            if n == row_number {
+                row.set_high().unwrap();
+            } else {
+                row.set_high().unwrap();
             }
         }
-        keys
     }
 }
