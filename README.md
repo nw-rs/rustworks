@@ -39,7 +39,9 @@ If you have an STLink debugger (I am using the STLink V3SET) you can flash faste
 
 ### Flash
 ```zsh
-cargo flash
+cargo flash --chip=stm32f730V8Tx
+# Or you can use this which does the same thing but might be easier to remember:
+cargo make flash
 ```
 
 ### Debug

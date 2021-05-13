@@ -18,3 +18,11 @@ args = [
     "-D", "target/thumbv7em-none-eabihf/release/rustworks.bin"
 ]
 dependencies = ["objcopy"]
+
+[tasks.flash]
+command = "cargo"
+args = [
+    "flash",
+    "--chip",
+    "stm32f730V8Tx",
+]
