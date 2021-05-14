@@ -11,10 +11,10 @@ use rtic::app;
 
 use stm32f7xx_hal::{delay::Delay, gpio::GpioExt, pac, prelude::*};
 
-use embedded_graphics::fonts::Font6x8;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::*;
+use embedded_graphics::{fonts::Font6x8, style::PrimitiveStyleBuilder};
 use embedded_text::prelude::*;
 
 use heapless::{String, Vec};
@@ -24,7 +24,7 @@ use st7789::{Orientation, ST7789};
 mod keypad;
 mod led;
 
-use keypad::{Key, Keypad};
+use keypad::{Alpha, Key, Keypad, Shift};
 use led::Led;
 
 const HCLK_MHZ: u32 = 216;
@@ -141,8 +141,8 @@ const APP: () = {
 
         let bounds = Rectangle::new(Point::new(4, 4), Point::new(display_width, 4));
 
-        let text_box = TextBox::new("Hello from Rust on Numworks! Keys pressed:", bounds)
-            .into_styled(textbox_style);
+        let text_box =
+            TextBox::new("Hello from Rust on Numworks!", bounds).into_styled(textbox_style);
 
         text_box.draw(&mut display).unwrap();
 
@@ -155,28 +155,86 @@ const APP: () = {
 
         let mut last_pressed: Vec<Key, 46> = Vec::new();
 
+        let mut string: String<52> = String::new();
+
+        let mut alpha = false;
+        let mut alpha_lock = false;
+        let mut shift = false;
+        let mut set = false;
+
         loop {
             let keys = keypad.pressed(&mut delay);
             if keys != last_pressed {
-                if keys.contains(&Key::Power) {
-                    if backlight_state {
-                        backlight_control.set_low().unwrap();
-                        backlight_state = false;
-                    } else {
-                        backlight_control.set_high().unwrap();
-                        backlight_state = true;
-                    }
-                }
                 if !keys.is_empty() {
+                    if keys.contains(&Key::Power) {
+                        if backlight_state {
+                            backlight_control.set_low().unwrap();
+                            led.off();
+                            backlight_state = false;
+                        } else {
+                            backlight_control.set_high().unwrap();
+                            led.green();
+                            backlight_state = true;
+                        }
+                    } else {
+                        if keys.contains(&Key::Shift) {
+                            shift = true;
+                            set = true;
+                        } else {
+                            if keys.contains(&Key::Alpha) {
+                                if alpha_lock {
+                                    alpha_lock = false;
+                                    alpha = false;
+                                } else {
+                                    if alpha {
+                                        alpha_lock = true;
+                                    }
+                                    alpha = true;
+                                }
+                                set = true;
+                            } else {
+                                if !alpha_lock && !set {
+                                    shift = false;
+                                    alpha = false;
+                                }
+                                set = false;
+                                let key = keys.first().unwrap();
+                                if alpha {
+                                    if let Some(key_alpha) = Option::<Alpha>::from(*key) {
+                                        let mut key_char = char::from(key_alpha);
+                                        if key_char != '\0' {
+                                            if string.len() >= 52 {
+                                                string.clear();
+                                            }
+                                            if shift {
+                                                key_char = key_char.to_ascii_uppercase();
+                                            }
+                                            string.push(key_char).unwrap();
+                                        }
+                                    }
+                                } else if shift {
+                                    if let Some(key_shift) = Option::<Shift>::from(*key) {
+                                        let key_char = char::from(key_shift);
+                                        if key_char != '\0' {
+                                            if string.len() >= 52 {
+                                                string.clear();
+                                            }
+                                            string.push(key_char).unwrap();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     let mut pressed_string: String<184> = String::new();
-                    write!(
-                        &mut pressed_string,
-                        "{:?}\t\t\t\t\t\t\t\t\t\t\t\t\t\n",
-                        keys
-                    )
-                    .unwrap();
+                    write!(&mut pressed_string, "{:?}", keys).unwrap();
                     rprintln!("{}", pressed_string);
-                    let text_box = TextBox::new(&pressed_string, bounds).into_styled(textbox_style);
+                    let mut tmp_string: String<52> = String::new();
+                    write!(&mut tmp_string, "{}", string).unwrap();
+                    for _ in 0..(52 - tmp_string.len()) {
+                        tmp_string.push(' ').unwrap();
+                    }
+                    let text_box = TextBox::new(&tmp_string, bounds).into_styled(textbox_style);
                     text_box.draw(&mut display).unwrap();
                 }
                 last_pressed = keys;
