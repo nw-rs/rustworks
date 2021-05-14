@@ -12,6 +12,47 @@ use stm32f7xx_hal::{
     prelude::OutputPin,
 };
 
+pub struct KeyPad {
+    alpha_lock: bool,
+    matrix: KeyMatrix,
+    last_state: u16,
+}
+
+impl KeyPad {
+    pub fn new(matrix: KeyMatrix) -> Self {
+        Self {
+            matrix,
+            alpha_lock: false,
+            last_state: 0,
+        }
+    }
+
+    pub fn read(&mut self, delay: &mut impl DelayUs<u32>) -> Vec<Key, 46> {
+        let state = self.matrix.scan(delay);
+        let sum: u16 = state.iter().map(|s| *s as u16).sum();
+        let switches = state_to_switches(state);
+        let shift = switches.contains(&Switch::R2C1);
+        let alpha = switches.contains(&Switch::R2C2);
+        let switch_to_key = if alpha && shift {
+            |sw: &Switch| sw.to_key_alpha(true)
+        } else if alpha {
+            |sw: &Switch| sw.to_key_alpha(false)
+        } else if shift {
+            |sw: &Switch| sw.to_key_shift()
+        } else {
+            |sw: &Switch| sw.to_key()
+        };
+        let keys: Vec<Key, 46> = switches.iter().map(switch_to_key).collect();
+        if sum != self.last_state {
+            self.last_state = sum;
+            if keys.contains(&Key::AlphaLock) {
+                self.alpha_lock = !self.alpha_lock;
+            }
+        }
+        keys
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, FromPrimitive)]
 #[repr(u8)]
 pub enum Switch {
@@ -63,184 +104,299 @@ pub enum Switch {
     R8C5 = 0x85,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, FromPrimitive)]
-#[repr(u8)]
-pub enum Key {
-    Left = 0x01,
-    Up = 0x02,
-    Down = 0x03,
-    Right = 0x04,
-    Ok = 0x05,
-    Back = 0x06,
-    Home = 0x11,
-    Power = 0x13,
-    Shift = 0x21,
-    Alpha = 0x22,
-    XNT = 0x23,
-    Var = 0x24,
-    Toolbox = 0x25,
-    Delete = 0x26,
-    E = 0x31,
-    Ln = 0x32,
-    Log = 0x33,
-    I = 0x34,
-    Comma = 0x35,
-    Pow = 0x36,
-    Sin = 0x41,
-    Cos = 0x42,
-    Tan = 0x43,
-    Pi = 0x44,
-    Sqrt = 0x45,
-    Square = 0x46,
-    Seven = 0x51,
-    Eight = 0x52,
-    Nine = 0x53,
-    LBracket = 0x54,
-    RBracket = 0x55,
-    Four = 0x61,
-    Five = 0x62,
-    Six = 0x63,
-    Multiply = 0x64,
-    Divide = 0x65,
-    One = 0x71,
-    Two = 0x72,
-    Three = 0x73,
-    Add = 0x74,
-    Subtract = 0x75,
-    Zero = 0x81,
-    Dot = 0x82,
-    EE = 0x83,
-    Ans = 0x84,
-    EXE = 0x85,
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, FromPrimitive)]
-#[repr(u8)]
-pub enum Shift {
-    UpperAlpha = 0x22,
-    Cut = 0x23,
-    Copy = 0x24,
-    Paste = 0x25,
-    Clear = 0x26,
-    RSqBracket = 0x31,
-    LSqBracket = 0x32,
-    RCurlyBrace = 0x33,
-    LCurlyBrace = 0x34,
-    Underscore = 0x35,
-    Sto = 0x36,
-    ASin = 0x41,
-    ACos = 0x42,
-    ATan = 0x43,
-    Equals = 0x44,
-    Less = 0x45,
-    Greater = 0x46,
-}
-
-impl From<Key> for Option<Shift> {
-    fn from(key: Key) -> Option<Shift> {
-        Shift::from_u8(key as u8)
+impl Switch {
+    pub fn to_key(&self) -> Key {
+        match self {
+            Self::R0C1 => Key::Left,
+            Self::R0C2 => Key::Up,
+            Self::R0C3 => Key::Down,
+            Self::R0C4 => Key::Right,
+            Self::R0C5 => Key::Ok,
+            Self::R0C6 => Key::Back,
+            Self::R1C1 => Key::Home,
+            Self::R1C3 => Key::Power,
+            Self::R2C1 => Key::Shift,
+            Self::R2C2 => Key::Alpha,
+            Self::R2C3 => Key::XNT,
+            Self::R2C4 => Key::Var,
+            Self::R2C5 => Key::Toolbox,
+            Self::R2C6 => Key::Delete,
+            Self::R3C1 => Key::Euler,
+            Self::R3C2 => Key::Ln,
+            Self::R3C3 => Key::Log,
+            Self::R3C4 => Key::Imaginary,
+            Self::R3C5 => Key::Comma,
+            Self::R3C6 => Key::Pow,
+            Self::R4C1 => Key::Sin,
+            Self::R4C2 => Key::Cos,
+            Self::R4C3 => Key::Tan,
+            Self::R4C4 => Key::Pi,
+            Self::R4C5 => Key::Sqrt,
+            Self::R4C6 => Key::Square,
+            Self::R5C1 => Key::Seven,
+            Self::R5C2 => Key::Eight,
+            Self::R5C3 => Key::Nine,
+            Self::R5C4 => Key::LBracket,
+            Self::R5C5 => Key::RBracket,
+            Self::R6C1 => Key::Four,
+            Self::R6C2 => Key::Five,
+            Self::R6C3 => Key::Six,
+            Self::R6C4 => Key::Multiply,
+            Self::R6C5 => Key::Divide,
+            Self::R7C1 => Key::One,
+            Self::R7C2 => Key::Two,
+            Self::R7C3 => Key::Three,
+            Self::R7C4 => Key::Add,
+            Self::R7C5 => Key::Subtract,
+            Self::R8C1 => Key::Zero,
+            Self::R8C2 => Key::Dot,
+            Self::R8C3 => Key::EE,
+            Self::R8C4 => Key::Ans,
+            Self::R8C5 => Key::EXE,
+        }
+    }
+    pub fn to_key_shift(&self) -> Key {
+        match self {
+            Self::R2C2 => Key::AlphaLock,
+            Self::R2C3 => Key::Cut,
+            Self::R2C4 => Key::Copy,
+            Self::R2C5 => Key::Paste,
+            Self::R2C6 => Key::Clear,
+            Self::R3C1 => Key::RSqBracket,
+            Self::R3C2 => Key::LSqBracket,
+            Self::R3C3 => Key::RCurlyBrace,
+            Self::R3C4 => Key::LCurlyBrace,
+            Self::R3C5 => Key::Underscore,
+            Self::R3C6 => Key::Sto,
+            Self::R4C1 => Key::ASin,
+            Self::R4C2 => Key::ACos,
+            Self::R4C3 => Key::ATan,
+            Self::R4C4 => Key::Equals,
+            Self::R4C5 => Key::Less,
+            Self::R4C6 => Key::Greater,
+            _ => self.to_key(),
+        }
+    }
+    pub fn to_key_alpha(&self, shift: bool) -> Key {
+        match self {
+            Self::R2C3 => Key::Colon,
+            Self::R2C4 => Key::SemiColon,
+            Self::R2C5 => Key::Quote,
+            Self::R2C6 => Key::Percent,
+            Self::R3C1 => Key::A,
+            Self::R3C2 => Key::B,
+            Self::R3C3 => Key::C,
+            Self::R3C4 => Key::D,
+            Self::R3C5 => Key::E,
+            Self::R3C6 => Key::F,
+            Self::R4C1 => Key::G,
+            Self::R4C2 => Key::H,
+            Self::R4C3 => Key::I,
+            Self::R4C4 => Key::J,
+            Self::R4C5 => Key::K,
+            Self::R4C6 => Key::L,
+            Self::R5C1 => Key::M,
+            Self::R5C2 => Key::N,
+            Self::R5C3 => Key::O,
+            Self::R5C4 => Key::P,
+            Self::R5C5 => Key::Q,
+            Self::R6C1 => Key::R,
+            Self::R6C2 => Key::S,
+            Self::R6C3 => Key::T,
+            Self::R6C4 => Key::U,
+            Self::R6C5 => Key::V,
+            Self::R7C1 => Key::W,
+            Self::R7C2 => Key::X,
+            Self::R7C3 => Key::Y,
+            Self::R7C4 => Key::Z,
+            Self::R7C5 => Key::Space,
+            Self::R8C1 => Key::Question,
+            Self::R8C2 => Key::Exclamation,
+            _ => {
+                if shift {
+                    self.to_key_shift()
+                } else {
+                    self.to_key()
+                }
+            }
+        }
     }
 }
 
-impl From<Shift> for char {
-    fn from(shift: Shift) -> char {
-        match shift {
-            Shift::RSqBracket => '[',
-            Shift::LSqBracket => ']',
-            Shift::RCurlyBrace => '{',
-            Shift::LCurlyBrace => '}',
-            Shift::Underscore => '_',
-            Shift::Equals => '=',
-            Shift::Less => '<',
-            Shift::Greater => '>',
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[repr(u8)]
+pub enum Key {
+    Left,
+    Up,
+    Down,
+    Right,
+    Ok,
+    Back,
+    Home,
+    Power,
+    Shift,
+    Alpha,
+    AlphaLock,
+    XNT,
+    Var,
+    Toolbox,
+    Delete,
+    Euler,
+    Ln,
+    Log,
+    Imaginary,
+    Comma,
+    Pow,
+    Sin,
+    Cos,
+    Tan,
+    Pi,
+    Sqrt,
+    Square,
+    Seven,
+    Eight,
+    Nine,
+    LBracket,
+    RBracket,
+    Four,
+    Five,
+    Six,
+    Multiply,
+    Divide,
+    One,
+    Two,
+    Three,
+    Add,
+    Subtract,
+    Zero,
+    Dot,
+    EE,
+    Ans,
+    EXE,
+    Cut,
+    Copy,
+    Paste,
+    Clear,
+    RSqBracket,
+    LSqBracket,
+    RCurlyBrace,
+    LCurlyBrace,
+    Underscore,
+    Sto,
+    ASin,
+    ACos,
+    ATan,
+    Equals,
+    Less,
+    Greater,
+    Colon,
+    SemiColon,
+    Quote,
+    Percent,
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+    M,
+    N,
+    O,
+    P,
+    Q,
+    R,
+    S,
+    T,
+    U,
+    V,
+    W,
+    X,
+    Y,
+    Z,
+    Space,
+    Question,
+    Exclamation,
+}
+
+impl From<Key> for char {
+    fn from(key: Key) -> char {
+        match key {
+            Key::XNT => 'x',
+            Key::Euler => '\u{1D452}',
+            Key::Imaginary => '\u{1d456}',
+            Key::Pow => '^',
+            Key::Pi => '\u{03C0}',
+            Key::Sqrt => '\u{221A}',
+            Key::Zero => '0',
+            Key::One => '1',
+            Key::Two => '2',
+            Key::Three => '3',
+            Key::Four => '4',
+            Key::Five => '5',
+            Key::Six => '6',
+            Key::Seven => '7',
+            Key::Eight => '8',
+            Key::Nine => '9',
+            Key::LBracket => '(',
+            Key::RBracket => ')',
+            Key::RSqBracket => '[',
+            Key::LSqBracket => ']',
+            Key::RCurlyBrace => '{',
+            Key::LCurlyBrace => '}',
+            Key::Underscore => '_',
+            Key::Equals => '=',
+            Key::Less => '<',
+            Key::Greater => '>',
+            Key::Multiply => '*',
+            Key::Divide => '/',
+            Key::Add => '+',
+            Key::Subtract => '-',
+            Key::Colon => ':',
+            Key::SemiColon => ';',
+            Key::Dot => '.',
+            Key::Comma => ',',
+            Key::Quote => '"',
+            Key::Percent => '%',
+            Key::A => 'a',
+            Key::B => 'b',
+            Key::C => 'c',
+            Key::D => 'd',
+            Key::E => 'e',
+            Key::F => 'f',
+            Key::G => 'g',
+            Key::H => 'h',
+            Key::I => 'i',
+            Key::J => 'j',
+            Key::K => 'k',
+            Key::L => 'l',
+            Key::M => 'm',
+            Key::N => 'n',
+            Key::O => 'o',
+            Key::P => 'p',
+            Key::Q => 'q',
+            Key::R => 'r',
+            Key::S => 's',
+            Key::T => 't',
+            Key::U => 'u',
+            Key::V => 'v',
+            Key::W => 'w',
+            Key::X => 'x',
+            Key::Y => 'y',
+            Key::Z => 'z',
+            Key::Space => ' ',
+            Key::Question => '?',
+            Key::Exclamation => '!',
             _ => '\0',
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, FromPrimitive)]
-#[repr(u8)]
-pub enum Alpha {
-    Colon = 0x23,
-    SemiColon = 0x24,
-    Quote = 0x25,
-    Percent = 0x26,
-    A = 0x31,
-    B = 0x32,
-    C = 0x33,
-    D = 0x34,
-    E = 0x35,
-    F = 0x36,
-    G = 0x41,
-    H = 0x42,
-    I = 0x43,
-    J = 0x44,
-    K = 0x45,
-    L = 0x46,
-    M = 0x51,
-    N = 0x52,
-    O = 0x53,
-    P = 0x54,
-    Q = 0x55,
-    R = 0x61,
-    S = 0x62,
-    T = 0x63,
-    U = 0x64,
-    V = 0x65,
-    W = 0x71,
-    X = 0x72,
-    Y = 0x73,
-    Z = 0x74,
-    Space = 0x75,
-    Question = 0x81,
-    Exclamation = 0x82,
-}
-
-impl From<Key> for Option<Alpha> {
-    fn from(key: Key) -> Option<Alpha> {
-        Alpha::from_u8(key as u8)
-    }
-}
-
-impl From<Alpha> for char {
-    fn from(alpha: Alpha) -> char {
-        match alpha {
-            Alpha::Colon => ':',
-            Alpha::SemiColon => ';',
-            Alpha::Quote => '"',
-            Alpha::Percent => '%',
-            Alpha::A => 'a',
-            Alpha::B => 'b',
-            Alpha::C => 'c',
-            Alpha::D => 'd',
-            Alpha::E => 'e',
-            Alpha::F => 'f',
-            Alpha::G => 'g',
-            Alpha::H => 'h',
-            Alpha::I => 'i',
-            Alpha::J => 'j',
-            Alpha::K => 'k',
-            Alpha::L => 'l',
-            Alpha::M => 'm',
-            Alpha::N => 'n',
-            Alpha::O => 'o',
-            Alpha::P => 'p',
-            Alpha::Q => 'q',
-            Alpha::R => 'r',
-            Alpha::S => 's',
-            Alpha::T => 't',
-            Alpha::U => 'u',
-            Alpha::V => 'v',
-            Alpha::W => 'w',
-            Alpha::X => 'x',
-            Alpha::Y => 'y',
-            Alpha::Z => 'z',
-            Alpha::Space => ' ',
-            Alpha::Question => '?',
-            Alpha::Exclamation => '!',
-        }
-    }
-}
 struct KeyColumns(
     PC0<Input<PullUp>>,
     PC1<Input<PullUp>>,
@@ -258,14 +414,14 @@ impl KeyColumns {
     }
 }
 
-pub struct Keypad {
+pub struct KeyMatrix {
     rows: [PA<Output<OpenDrain>>; 9],
     columns: KeyColumns,
 }
 
 type MODE = Input<Floating>;
 
-impl Keypad {
+impl KeyMatrix {
     pub fn new(
         pa0: PA0<MODE>,
         pa1: PA1<MODE>,
@@ -342,23 +498,22 @@ impl Keypad {
 
         state
     }
-
-    pub fn pressed(&mut self, delay: &mut impl DelayUs<u32>) -> Vec<Key, 46> {
-        let mut keys: Vec<Key, 46> = Vec::new();
-        let state = self.scan(delay);
-        for (n, row) in state.iter().enumerate() {
-            let start = 0x10 * n as u8;
-            for col in [1u8, 2, 4, 8, 16, 32].iter() {
-                if let Some(key) = row_to_key(start, *row, *col) {
-                    keys.push(key).unwrap();
-                }
-            }
-        }
-        keys
-    }
 }
 
-fn row_to_key(start: u8, row: u8, col: u8) -> Option<Key> {
+fn state_to_switches(state: [u8; 9]) -> Vec<Switch, 46> {
+    let mut keys: Vec<Switch, 46> = Vec::new();
+    for (n, row) in state.iter().enumerate() {
+        let start = 0x10 * n as u8;
+        for col in [1u8, 2, 4, 8, 16, 32].iter() {
+            if let Some(key) = col_to_key(start, *row, *col) {
+                keys.push(key).unwrap();
+            }
+        }
+    }
+    keys
+}
+
+fn col_to_key(start: u8, row: u8, col: u8) -> Option<Switch> {
     let key = match col {
         1 => 1,
         2 => 2,
@@ -369,7 +524,7 @@ fn row_to_key(start: u8, row: u8, col: u8) -> Option<Key> {
         _ => return None,
     };
     if row & col == col {
-        Key::from_u8(start + key)
+        Switch::from_u8(start + key)
     } else {
         None
     }

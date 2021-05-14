@@ -11,10 +11,10 @@ use rtic::app;
 
 use stm32f7xx_hal::{delay::Delay, gpio::GpioExt, pac, prelude::*};
 
+use embedded_graphics::fonts::Font6x8;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::*;
-use embedded_graphics::{fonts::Font6x8, style::PrimitiveStyleBuilder};
 use embedded_text::prelude::*;
 
 use heapless::{String, Vec};
@@ -24,7 +24,7 @@ use st7789::{Orientation, ST7789};
 mod keypad;
 mod led;
 
-use keypad::{Alpha, Key, Keypad, Shift};
+use keypad::{Key, KeyMatrix, KeyPad};
 use led::Led;
 
 const HCLK_MHZ: u32 = 216;
@@ -49,10 +49,12 @@ const APP: () = {
         let gpiod = dp.GPIOD.split();
         let gpioe = dp.GPIOE.split();
 
-        let mut keypad = Keypad::new(
+        let keymatrix = KeyMatrix::new(
             gpioa.pa0, gpioa.pa1, gpioa.pa2, gpioa.pa3, gpioa.pa4, gpioa.pa5, gpioa.pa6, gpioa.pa7,
             gpioa.pa8, gpioc.pc0, gpioc.pc1, gpioc.pc2, gpioc.pc3, gpioc.pc4, gpioc.pc5,
         );
+
+        let mut keypad = KeyPad::new(keymatrix);
 
         let mut backlight_control = gpioe.pe0.into_push_pull_output();
 
@@ -157,13 +159,8 @@ const APP: () = {
 
         let mut string: String<52> = String::new();
 
-        let mut alpha = false;
-        let mut alpha_lock = false;
-        let mut shift = false;
-        let mut set = false;
-
         loop {
-            let keys = keypad.pressed(&mut delay);
+            let keys = keypad.read(&mut delay);
             if keys != last_pressed {
                 if !keys.is_empty() {
                     if keys.contains(&Key::Power) {
@@ -176,54 +173,14 @@ const APP: () = {
                             led.green();
                             backlight_state = true;
                         }
-                    } else {
-                        if keys.contains(&Key::Shift) {
-                            shift = true;
-                            set = true;
-                        } else {
-                            if keys.contains(&Key::Alpha) {
-                                if alpha_lock {
-                                    alpha_lock = false;
-                                    alpha = false;
-                                } else {
-                                    if alpha {
-                                        alpha_lock = true;
-                                    }
-                                    alpha = true;
-                                }
-                                set = true;
-                            } else {
-                                if !alpha_lock && !set {
-                                    shift = false;
-                                    alpha = false;
-                                }
-                                set = false;
-                                let key = keys.first().unwrap();
-                                if alpha {
-                                    if let Some(key_alpha) = Option::<Alpha>::from(*key) {
-                                        let mut key_char = char::from(key_alpha);
-                                        if key_char != '\0' {
-                                            if string.len() >= 52 {
-                                                string.clear();
-                                            }
-                                            if shift {
-                                                key_char = key_char.to_ascii_uppercase();
-                                            }
-                                            string.push(key_char).unwrap();
-                                        }
-                                    }
-                                } else if shift {
-                                    if let Some(key_shift) = Option::<Shift>::from(*key) {
-                                        let key_char = char::from(key_shift);
-                                        if key_char != '\0' {
-                                            if string.len() >= 52 {
-                                                string.clear();
-                                            }
-                                            string.push(key_char).unwrap();
-                                        }
-                                    }
-                                }
+                    }
+                    for key in keys.iter() {
+                        let key_char = char::from(*key);
+                        if key_char != '\0' {
+                            if string.len() >= 52 {
+                                string.clear();
                             }
+                            string.push(key_char).unwrap();
                         }
                     }
                     let mut pressed_string: String<184> = String::new();
