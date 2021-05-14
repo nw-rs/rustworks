@@ -63,6 +63,133 @@ pub enum Key {
     EXE = 0x85,
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, FromPrimitive)]
+#[repr(u8)]
+pub enum Shift {
+    UpperAlpha = 0x22,
+    Cut = 0x23,
+    Copy = 0x24,
+    Paste = 0x25,
+    Clear = 0x26,
+    RSqBracket = 0x31,
+    LSqBracket = 0x32,
+    RCurlyBrace = 0x33,
+    LCurlyBrace = 0x34,
+    Underscore = 0x35,
+    Sto = 0x36,
+    ASin = 0x41,
+    ACos = 0x42,
+    ATan = 0x43,
+    Equals = 0x44,
+    Less = 0x45,
+    Greater = 0x46,
+}
+
+impl From<Key> for Option<Shift> {
+    fn from(key: Key) -> Option<Shift> {
+        Shift::from_u8(key as u8)
+    }
+}
+
+impl From<Shift> for char {
+    fn from(shift: Shift) -> char {
+        match shift {
+            Shift::RSqBracket => '[',
+            Shift::LSqBracket => ']',
+            Shift::RCurlyBrace => '{',
+            Shift::LCurlyBrace => '}',
+            Shift::Underscore => '_',
+            Shift::Equals => '=',
+            Shift::Less => '<',
+            Shift::Greater => '>',
+            _ => '\0',
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, FromPrimitive)]
+#[repr(u8)]
+pub enum Alpha {
+    Colon = 0x23,
+    SemiColon = 0x24,
+    Quote = 0x25,
+    Percent = 0x26,
+    A = 0x31,
+    B = 0x32,
+    C = 0x33,
+    D = 0x34,
+    E = 0x35,
+    F = 0x36,
+    G = 0x41,
+    H = 0x42,
+    I = 0x43,
+    J = 0x44,
+    K = 0x45,
+    L = 0x46,
+    M = 0x51,
+    N = 0x52,
+    O = 0x53,
+    P = 0x54,
+    Q = 0x55,
+    R = 0x61,
+    S = 0x62,
+    T = 0x63,
+    U = 0x64,
+    V = 0x65,
+    W = 0x71,
+    X = 0x72,
+    Y = 0x73,
+    Z = 0x74,
+    Space = 0x75,
+    Question = 0x81,
+    Exclamation = 0x82,
+}
+
+impl From<Key> for Option<Alpha> {
+    fn from(key: Key) -> Option<Alpha> {
+        Alpha::from_u8(key as u8)
+    }
+}
+
+impl From<Alpha> for char {
+    fn from(alpha: Alpha) -> char {
+        match alpha {
+            Alpha::Colon => ':',
+            Alpha::SemiColon => ';',
+            Alpha::Quote => '"',
+            Alpha::Percent => '%',
+            Alpha::A => 'a',
+            Alpha::B => 'b',
+            Alpha::C => 'c',
+            Alpha::D => 'd',
+            Alpha::E => 'e',
+            Alpha::F => 'f',
+            Alpha::G => 'g',
+            Alpha::H => 'h',
+            Alpha::I => 'i',
+            Alpha::J => 'j',
+            Alpha::K => 'k',
+            Alpha::L => 'l',
+            Alpha::M => 'm',
+            Alpha::N => 'n',
+            Alpha::O => 'o',
+            Alpha::P => 'p',
+            Alpha::Q => 'q',
+            Alpha::R => 'r',
+            Alpha::S => 's',
+            Alpha::T => 't',
+            Alpha::U => 'u',
+            Alpha::V => 'v',
+            Alpha::W => 'w',
+            Alpha::X => 'x',
+            Alpha::Y => 'y',
+            Alpha::Z => 'z',
+            Alpha::Space => ' ',
+            Alpha::Question => '?',
+            Alpha::Exclamation => '!',
+        }
+    }
+}
 struct KeyColumns(
     PC0<Input<PullUp>>,
     PC1<Input<PullUp>>,
@@ -182,11 +309,13 @@ impl Keypad {
 
 fn row_to_key(start: u8, row: u8, col: u8) -> Option<Key> {
     let key = match col {
+        1 => 1,
+        2 => 2,
         4 => 3,
         8 => 4,
         16 => 5,
         32 => 6,
-        _ => col,
+        _ => return None,
     };
     if row & col == col {
         Key::from_u8(start + key)
