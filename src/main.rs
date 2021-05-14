@@ -174,13 +174,21 @@ const APP: () = {
                             backlight_state = true;
                         }
                     }
+                    let shift = keys.contains(&Key::Shift);
                     for key in keys.iter() {
-                        let key_char = char::from(*key);
+                        let mut key_char = char::from(*key);
                         if key_char != '\0' {
                             if string.len() >= 52 {
                                 string.clear();
                             }
+                            if shift {
+                                key_char = key_char.to_ascii_uppercase();
+                            }
                             string.push(key_char).unwrap();
+                        } else if key == &Key::Delete {
+                            string.pop();
+                        } else if key == &Key::Clear {
+                            string.clear();
                         }
                     }
                     let mut pressed_string: String<184> = String::new();

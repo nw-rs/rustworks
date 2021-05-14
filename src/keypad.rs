@@ -32,7 +32,7 @@ impl KeyPad {
         let sum: u16 = state.iter().map(|s| *s as u16).sum();
         let switches = state_to_switches(state);
         let shift = switches.contains(&Switch::R2C1);
-        let alpha = switches.contains(&Switch::R2C2);
+        let alpha = switches.contains(&Switch::R2C2) || self.alpha_lock;
         let switch_to_key = if alpha && shift {
             |sw: &Switch| sw.to_key_alpha(true)
         } else if alpha {
@@ -328,11 +328,9 @@ impl From<Key> for char {
     fn from(key: Key) -> char {
         match key {
             Key::XNT => 'x',
-            Key::Euler => '\u{1D452}',
-            Key::Imaginary => '\u{1d456}',
+            Key::Euler => 'e',
+            Key::Imaginary => 'i',
             Key::Pow => '^',
-            Key::Pi => '\u{03C0}',
-            Key::Sqrt => '\u{221A}',
             Key::Zero => '0',
             Key::One => '1',
             Key::Two => '2',
