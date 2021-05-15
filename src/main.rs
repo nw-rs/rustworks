@@ -11,7 +11,7 @@ use core::fmt::Write;
 
 use rtic::app;
 
-use stm32f7xx_hal::fsmc_lcd::{ChipSelect1, FsmcLcd, LcdPins, Timing};
+use stm32f7xx_hal::fsmc_lcd::{AccessMode, ChipSelect1, FsmcLcd, LcdPins, Timing};
 use stm32f7xx_hal::{delay::Delay, gpio::GpioExt, pac, prelude::*};
 
 use embedded_graphics::fonts::Font6x8;
@@ -37,7 +37,6 @@ const APP: () = {
     #[init]
     fn init(cx: init::Context) {
         rtt_init_print!();
-        rprintln!("Starting...");
         let cp: cortex_m::Peripherals = cx.core;
 
         let dp: pac::Peripherals = cx.device;
@@ -59,6 +58,14 @@ const APP: () = {
 
         let mut keypad = KeyPad::new(keymatrix);
 
+        let mut led = Led::new(
+            gpiob.pb4.into_push_pull_output(),
+            gpiob.pb5.into_push_pull_output(),
+            gpiob.pb0.into_push_pull_output(),
+        );
+
+        led.blue();
+
         let mut backlight_control = gpioe.pe0.into_push_pull_output();
 
         let mut backlight_state = true;
@@ -75,16 +82,6 @@ const APP: () = {
         let mut lcd_tearing_effect = gpiob.pb11.into_push_pull_output();
 
         lcd_tearing_effect.set_low().unwrap();
-
-        let mut led = Led::new(
-            gpiob.pb4.into_push_pull_output(),
-            gpiob.pb5.into_push_pull_output(),
-            gpiob.pb0.into_push_pull_output(),
-        );
-
-        led.blue();
-
-        rprintln!("Initializing display pins...");
 
         let lcd_pins = LcdPins {
             data: (
@@ -111,34 +108,56 @@ const APP: () = {
             chip_select: ChipSelect1(gpiod.pd7.into_alternate_af12()),
         };
 
-        rprintln!("Initializing FSMC LCD interface...");
+        let ns_to_cycles = |ns: u32| ns * HCLK_MHZ / 1000 + 1;
 
-        let (_fsmc, lcd) = FsmcLcd::new(dp.FMC, lcd_pins, &Timing::default(), &Timing::default());
+        let tedge: u32 = 15;
+        let twc: u32 = 66;
+        let trcfm: u32 = 450;
+        let twrl: u32 = 15;
+        let trdlfm: u32 = 355;
 
-        rprintln!("Initializing LCD reset pin...");
+        let trdatast = trdlfm + tedge;
+
+        let read_data_cycles = ns_to_cycles(trdatast);
+
+        let read_addrsetup_cycles = ns_to_cycles(trcfm - trdatast);
+
+        let read_timing = Timing::default()
+            .data(read_data_cycles as u8)
+            .address_hold(0)
+            .address_setup(read_addrsetup_cycles as u8)
+            .bus_turnaround(0)
+            .access_mode(AccessMode::ModeA);
+
+        let twdatast = twrl + tedge;
+
+        let write_data_cycles = ns_to_cycles(twdatast);
+
+        let write_addrsetup_cycles = ns_to_cycles(twc - twdatast) - 1;
+
+        let write_timing = Timing::default()
+            .data(write_data_cycles as u8)
+            .address_hold(0)
+            .address_setup(write_addrsetup_cycles as u8)
+            .bus_turnaround(0)
+            .access_mode(AccessMode::ModeA);
+
+        let (_fsmc, lcd) = FsmcLcd::new(dp.FMC, lcd_pins, &read_timing, &write_timing);
 
         let lcd_reset = gpioe.pe1.into_push_pull_output();
 
         let display_width = 320i32;
         let display_height = 240i32;
 
-        rprintln!("Initializing display...");
-
         let mut display = ST7789::new(lcd, lcd_reset, display_width as u16, display_height as u16);
 
         display.init(&mut delay).unwrap();
-
-        rprintln!("Setting display orientation...");
 
         display
             .set_orientation(Orientation::LandscapeSwapped)
             .unwrap();
 
-        rprintln!("Clearing display...");
-
         display.clear(Rgb565::BLACK).unwrap();
-
-        rprintln!("Creating display test text...");
 
         let textbox_style = TextBoxStyleBuilder::new(Font6x8)
             .text_color(Rgb565::GREEN)
@@ -151,13 +170,9 @@ const APP: () = {
         let text_box =
             TextBox::new("Hello from Rust on Numworks!", bounds).into_styled(textbox_style);
 
-        rprintln!("Drawing display test text...");
-
         text_box.draw(&mut display).unwrap();
 
         led.green();
-
-        rprintln!("Inializing program loop...");
 
         let text_box_tl = Point::new(4, 12);
         let text_box_tr = Point::new(display_width - 4, 12);
@@ -167,8 +182,6 @@ const APP: () = {
         let mut last_pressed: Vec<Key, 46> = Vec::new();
 
         let mut string: String<52> = String::new();
-
-        rprintln!("Starting main loop...");
 
         loop {
             let keys = keypad.read(&mut delay);
