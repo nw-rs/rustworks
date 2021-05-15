@@ -1,0 +1,17 @@
+[default.probe]
+protocol = "Swd"
+
+[default.flashing]
+enabled = true
+
+[default.reset]
+enabled = true
+
+[default.general]
+chip = "stm32f730V8Tx"
+
+[default.rtt]
+enabled = true
+timeout = 3000
+show_timestamps = true
+

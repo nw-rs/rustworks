@@ -21,8 +21,10 @@ rustup component add llvm-tools-preview
 cargo install cargo-binutils
 cargo install cargo-make
 
-# If you have an STLink debugger and can connect it to the calculator install `probe-run` for faster flashing and easy debugging.
+# If you have an STLink debugger and can connect it to the calculator install `probe-run` or `cargo-embed` for easy debugging and `cargo-flash` if you just want faster flashing speeds.
 cargo install probe-run
+cargo install cargo-embed
+cargo install cargo-flash
 ```
 
 ## DFU Flash
@@ -45,6 +47,13 @@ cargo make flash
 ```
 
 ### Debug
+
+Using `cargo-embed` (recommended):
+```zsh
+cargo embed
+```
+
+Using `probe-rs`:
 ```zsh
 cargo run
 ```
