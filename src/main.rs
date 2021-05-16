@@ -11,7 +11,7 @@ use core::fmt::Write;
 
 use rtic::app;
 
-use stm32f7xx_hal::fsmc_lcd::{AccessMode, ChipSelect1, FsmcLcd, LcdPins, Timing};
+use stm32f7xx_hal::fmc_lcd::{AccessMode, ChipSelect1, FmcLcd, LcdPins, Timing};
 use stm32f7xx_hal::{delay::Delay, gpio::GpioExt, pac, prelude::*};
 
 use embedded_graphics::fonts::Font6x8;
@@ -108,6 +108,8 @@ const APP: () = {
             chip_select: ChipSelect1(gpiod.pd7.into_alternate_af12()),
         };
 
+        rprintln!("timings start");
+
         let ns_to_cycles = |ns: u32| ns * HCLK_MHZ / 1000 + 1;
 
         let tedge: u32 = 15;
@@ -142,14 +144,26 @@ const APP: () = {
             .bus_turnaround(0)
             .access_mode(AccessMode::ModeA);
 
-        let (_fsmc, lcd) = FsmcLcd::new(dp.FMC, lcd_pins, &read_timing, &write_timing);
+        rprintln!("fsmclcd init");
+
+        let (_fmc, lcd) = FmcLcd::new(
+            dp.FMC,
+            HCLK_MHZ.mhz().into(),
+            lcd_pins,
+            &read_timing,
+            &write_timing,
+        );
 
         let lcd_reset = gpioe.pe1.into_push_pull_output();
 
         let display_width = 320i32;
         let display_height = 240i32;
 
+        rprintln!("display create");
+
         let mut display = ST7789::new(lcd, lcd_reset, display_width as u16, display_height as u16);
+
+        rprintln!("display init");
 
         display.init(&mut delay).unwrap();
 
