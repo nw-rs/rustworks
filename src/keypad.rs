@@ -390,6 +390,7 @@ impl From<Key> for char {
             Key::Space => ' ',
             Key::Question => '?',
             Key::Exclamation => '!',
+            Key::EXE => '\n',
             _ => '\0',
         }
     }
@@ -499,7 +500,7 @@ impl KeyMatrix {
 }
 
 fn state_to_switches(state: [u8; 9]) -> Vec<Switch, 46> {
-    let mut keys: Vec<Switch, 46> = Vec::new();
+    let mut keys = Vec::new();
     for (n, row) in state.iter().enumerate() {
         let start = 0x10 * n as u8;
         for col in [1u8, 2, 4, 8, 16, 32].iter() {

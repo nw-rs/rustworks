@@ -1,8 +1,16 @@
 #![no_std]
 #![no_main]
+#![feature(alloc_error_handler)]
 #![allow(dead_code)]
 
-//extern crate panic_halt;
+extern crate alloc;
+
+use alloc_cortex_m::CortexMHeap;
+use core::alloc::Layout;
+
+#[global_allocator]
+static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
+
 use rtt_target::{rprintln, rtt_init_print};
 
 use core::panic::PanicInfo;
@@ -11,7 +19,7 @@ use core::fmt::Write;
 
 use rtic::app;
 
-use stm32f7xx_hal::fmc_lcd::{AccessMode, ChipSelect1, FmcLcd, LcdPins, Timing};
+//use stm32f7xx_hal::fmc_lcd::{AccessMode, ChipSelect1, FmcLcd, LcdPins, Timing};
 use stm32f7xx_hal::{delay::Delay, gpio::GpioExt, pac, prelude::*};
 
 use embedded_graphics::fonts::Font6x8;
@@ -20,9 +28,9 @@ use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::*;
 use embedded_text::prelude::*;
 
-use heapless::{String, Vec};
-
 use st7789::{Orientation, ST7789};
+
+use alloc::string::String;
 
 mod keypad;
 mod led;
@@ -30,13 +38,18 @@ mod led;
 use keypad::{Key, KeyMatrix, KeyPad};
 use led::Led;
 
-const HCLK_MHZ: u32 = 216;
+const HCLK_MHZ: u32 = 100;
+const HEAP: usize = 32768;
 
 #[app(device = stm32f7xx_hal::pac, peripherals = true)]
 const APP: () = {
     #[init]
     fn init(cx: init::Context) {
         rtt_init_print!();
+
+        let start = cortex_m_rt::heap_start() as usize;
+        unsafe { ALLOCATOR.init(start, HEAP) }
+
         let cp: cortex_m::Peripherals = cx.core;
 
         let dp: pac::Peripherals = cx.device;
@@ -75,13 +88,13 @@ const APP: () = {
 
         lcd_power.set_high().unwrap();
 
-        let mut lcd_extd_command = gpiod.pd6.into_push_pull_output();
+        /*let mut lcd_extd_command = gpiod.pd6.into_push_pull_output();
 
-        lcd_extd_command.set_low().unwrap();
+        lcd_extd_command.set_high().unwrap();
 
         let mut lcd_tearing_effect = gpiob.pb11.into_push_pull_output();
 
-        lcd_tearing_effect.set_low().unwrap();
+        lcd_tearing_effect.set_high().unwrap();
 
         let lcd_pins = LcdPins {
             data: (
@@ -144,6 +157,9 @@ const APP: () = {
             .bus_turnaround(0)
             .access_mode(AccessMode::ModeA);
 
+        let read_timing = Timing::default().data(8).address_setup(8).bus_turnaround(0);
+        let write_timing = Timing::default().data(3).address_setup(3).bus_turnaround(0);
+
         rprintln!("fsmclcd init");
 
         let (_fmc, lcd) = FmcLcd::new(
@@ -152,6 +168,40 @@ const APP: () = {
             lcd_pins,
             &read_timing,
             &write_timing,
+        );*/
+
+        let mut lcd_chip_select = gpiod.pd7.into_push_pull_output();
+
+        lcd_chip_select.set_low().unwrap();
+
+        let mut lcd_read_enable = gpiod.pd4.into_push_pull_output();
+
+        lcd_read_enable.set_high().unwrap();
+
+        let lcd_bus = display_interface_parallel_gpio::Generic16BitBus::new((
+            gpiod.pd14.into_push_pull_output(),
+            gpiod.pd15.into_push_pull_output(),
+            gpiod.pd0.into_push_pull_output(),
+            gpiod.pd1.into_push_pull_output(),
+            gpioe.pe7.into_push_pull_output(),
+            gpioe.pe8.into_push_pull_output(),
+            gpioe.pe9.into_push_pull_output(),
+            gpioe.pe10.into_push_pull_output(),
+            gpioe.pe11.into_push_pull_output(),
+            gpioe.pe12.into_push_pull_output(),
+            gpioe.pe13.into_push_pull_output(),
+            gpioe.pe14.into_push_pull_output(),
+            gpioe.pe15.into_push_pull_output(),
+            gpiod.pd8.into_push_pull_output(),
+            gpiod.pd9.into_push_pull_output(),
+            gpiod.pd10.into_push_pull_output(),
+        ))
+        .unwrap();
+
+        let lcd = display_interface_parallel_gpio::PGPIO16BitInterface::new(
+            lcd_bus,
+            gpiod.pd11.into_push_pull_output(),
+            gpiod.pd5.into_push_pull_output(),
         );
 
         let lcd_reset = gpioe.pe1.into_push_pull_output();
@@ -176,26 +226,21 @@ const APP: () = {
         let textbox_style = TextBoxStyleBuilder::new(Font6x8)
             .text_color(Rgb565::GREEN)
             .background_color(Rgb565::BLACK)
-            .height_mode(FitToText)
+            .vertical_alignment(Scrolling)
             .build();
 
-        let bounds = Rectangle::new(Point::new(4, 4), Point::new(display_width, 4));
-
-        let text_box =
-            TextBox::new("Hello from Rust on Numworks!", bounds).into_styled(textbox_style);
-
-        text_box.draw(&mut display).unwrap();
+        let bounds = Rectangle::new(
+            Point::new(3, 5),
+            Point::new(display_width - 3, display_height - 5),
+        );
 
         led.green();
 
-        let text_box_tl = Point::new(4, 12);
-        let text_box_tr = Point::new(display_width - 4, 12);
+        let mut last_pressed: heapless::Vec<Key, 46> = heapless::Vec::new();
 
-        let bounds = Rectangle::new(text_box_tl, text_box_tr);
+        let mut string = String::with_capacity(2132);
 
-        let mut last_pressed: Vec<Key, 46> = Vec::new();
-
-        let mut string: String<52> = String::new();
+        let mut off = false;
 
         loop {
             let keys = keypad.read(&mut delay);
@@ -205,40 +250,45 @@ const APP: () = {
                         if backlight_state {
                             backlight_control.set_low().unwrap();
                             led.off();
+                            display.clear(Rgb565::BLACK).unwrap();
+                            off = true;
                             backlight_state = false;
                         } else {
                             backlight_control.set_high().unwrap();
                             led.green();
+                            off = false;
                             backlight_state = true;
                         }
                     }
-                    let shift = keys.contains(&Key::Shift);
-                    for key in keys.iter() {
-                        let mut key_char = char::from(*key);
-                        if key_char != '\0' {
-                            if string.len() >= 52 {
+
+                    if !off {
+                        let shift = keys.contains(&Key::Shift);
+                        for key in keys.iter() {
+                            let mut key_char = char::from(*key);
+                            if key_char != '\0' {
+                                if shift {
+                                    key_char = key_char.to_ascii_uppercase();
+                                }
+                                string.push(key_char);
+                            } else if key == &Key::Delete {
+                                string.pop();
+                            } else if key == &Key::Clear {
                                 string.clear();
                             }
-                            if shift {
-                                key_char = key_char.to_ascii_uppercase();
-                            }
-                            string.push(key_char).unwrap();
-                        } else if key == &Key::Delete {
-                            string.pop();
-                        } else if key == &Key::Clear {
-                            string.clear();
                         }
+                        let mut pressed_string = String::new();
+                        write!(
+                            &mut pressed_string,
+                            "{:?}: {}, {}",
+                            keys,
+                            string.len(),
+                            string.capacity()
+                        )
+                        .unwrap();
+                        rprintln!("{}", pressed_string);
+                        let text_box = TextBox::new(&string, bounds).into_styled(textbox_style);
+                        text_box.draw(&mut display).unwrap();
                     }
-                    let mut pressed_string: String<184> = String::new();
-                    write!(&mut pressed_string, "{:?}", keys).unwrap();
-                    rprintln!("{}", pressed_string);
-                    let mut tmp_string: String<52> = String::new();
-                    write!(&mut tmp_string, "{}", string).unwrap();
-                    for _ in 0..(52 - tmp_string.len()) {
-                        tmp_string.push(' ').unwrap();
-                    }
-                    let text_box = TextBox::new(&tmp_string, bounds).into_styled(textbox_style);
-                    text_box.draw(&mut display).unwrap();
                 }
                 last_pressed = keys;
             }
@@ -247,10 +297,14 @@ const APP: () = {
 };
 
 #[inline(never)]
+#[alloc_error_handler]
+fn oom(layout: Layout) -> ! {
+    panic!("OOM: {:?}", layout);
+}
+
+#[inline(never)]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     rprintln!("{}", info);
-    loop {
-        continue;
-    }
+    cortex_m::peripheral::SCB::sys_reset();
 }
