@@ -1,5 +1,6 @@
 [default.probe]
 protocol = "Swd"
+speed = 2000
 
 [default.flashing]
 enabled = true
@@ -12,6 +13,6 @@ chip = "stm32f730V8Tx"
 
 [default.rtt]
 enabled = true
-timeout = 3000
+timeout = 2
 show_timestamps = true
 

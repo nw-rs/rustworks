@@ -15,11 +15,9 @@ use rtt_target::{rprintln, rtt_init_print};
 
 use core::panic::PanicInfo;
 
-use core::fmt::Write;
-
 use rtic::app;
 
-//use stm32f7xx_hal::fmc_lcd::{AccessMode, ChipSelect1, FmcLcd, LcdPins, Timing};
+use stm32f7xx_hal::fmc_lcd::{AccessMode, ChipSelect1, FmcLcd, LcdPins, Timing};
 use stm32f7xx_hal::{delay::Delay, gpio::GpioExt, pac, prelude::*};
 
 use embedded_graphics::fonts::Font6x8;
@@ -38,7 +36,7 @@ mod led;
 use keypad::{Key, KeyMatrix, KeyPad};
 use led::Led;
 
-const HCLK_MHZ: u32 = 100;
+const HCLK: u32 = 100_000_000;
 const HEAP: usize = 32768;
 
 #[app(device = stm32f7xx_hal::pac, peripherals = true)]
@@ -46,7 +44,6 @@ const APP: () = {
     #[init]
     fn init(cx: init::Context) {
         rtt_init_print!();
-
         let start = cortex_m_rt::heap_start() as usize;
         unsafe { ALLOCATOR.init(start, HEAP) }
 
@@ -55,8 +52,10 @@ const APP: () = {
         let dp: pac::Peripherals = cx.device;
 
         let rcc = dp.RCC.constrain();
-        let clocks = rcc.cfgr.hclk(HCLK_MHZ.mhz()).freeze();
+        let clocks = rcc.cfgr.hclk(HCLK.hz()).freeze();
         let mut delay = Delay::new(cp.SYST, clocks);
+
+        delay.delay_ms(100_u8);
 
         let gpioa = dp.GPIOA.split();
         let gpioc = dp.GPIOC.split();
@@ -88,7 +87,7 @@ const APP: () = {
 
         lcd_power.set_high().unwrap();
 
-        /*let mut lcd_extd_command = gpiod.pd6.into_push_pull_output();
+        let mut lcd_extd_command = gpiod.pd6.into_push_pull_output();
 
         lcd_extd_command.set_high().unwrap();
 
@@ -123,7 +122,7 @@ const APP: () = {
 
         rprintln!("timings start");
 
-        let ns_to_cycles = |ns: u32| ns * HCLK_MHZ / 1000 + 1;
+        let ns_to_cycles = |ns: u32| (HCLK / 1_000_000) * ns;
 
         let tedge: u32 = 15;
         let twc: u32 = 66;
@@ -139,9 +138,7 @@ const APP: () = {
 
         let read_timing = Timing::default()
             .data(read_data_cycles as u8)
-            .address_hold(0)
             .address_setup(read_addrsetup_cycles as u8)
-            .bus_turnaround(0)
             .access_mode(AccessMode::ModeA);
 
         let twdatast = twrl + tedge;
@@ -152,25 +149,24 @@ const APP: () = {
 
         let write_timing = Timing::default()
             .data(write_data_cycles as u8)
-            .address_hold(0)
             .address_setup(write_addrsetup_cycles as u8)
-            .bus_turnaround(0)
             .access_mode(AccessMode::ModeA);
 
-        let read_timing = Timing::default().data(8).address_setup(8).bus_turnaround(0);
-        let write_timing = Timing::default().data(3).address_setup(3).bus_turnaround(0);
+        rprintln!(
+            "tedge: {}, twc: {}, trcfm: {}, twrl: {}, trdlfm: {}, trdatast: {}",
+            tedge,
+            twc,
+            trcfm,
+            twrl,
+            trdlfm,
+            trdatast
+        );
+        rprintln!("read: {:?}", read_timing);
+        rprintln!("write: {:?}", write_timing);
 
-        rprintln!("fsmclcd init");
+        let (_fmc, lcd) = FmcLcd::new(dp.FMC, HCLK.hz(), lcd_pins, &read_timing, &write_timing);
 
-        let (_fmc, lcd) = FmcLcd::new(
-            dp.FMC,
-            HCLK_MHZ.mhz().into(),
-            lcd_pins,
-            &read_timing,
-            &write_timing,
-        );*/
-
-        let mut lcd_chip_select = gpiod.pd7.into_push_pull_output();
+        /*let mut lcd_chip_select = gpiod.pd7.into_push_pull_output();
 
         lcd_chip_select.set_low().unwrap();
 
@@ -202,9 +198,19 @@ const APP: () = {
             lcd_bus,
             gpiod.pd11.into_push_pull_output(),
             gpiod.pd5.into_push_pull_output(),
-        );
+        );*/
 
-        let lcd_reset = gpioe.pe1.into_push_pull_output();
+        let mut lcd_reset = gpioe.pe1.into_push_pull_output();
+
+        lcd_reset.set_low().unwrap();
+        delay.delay_ms(5u16);
+        lcd_reset.set_high().unwrap();
+        delay.delay_ms(10u16);
+        lcd_reset.set_low().unwrap();
+        delay.delay_ms(20u16);
+        // Release from reset
+        lcd_reset.set_high().unwrap();
+        delay.delay_ms(10u16);
 
         let display_width = 320i32;
         let display_height = 240i32;
@@ -269,6 +275,19 @@ const APP: () = {
                                 if shift {
                                     key_char = key_char.to_ascii_uppercase();
                                 }
+                                let lines = string.lines().count();
+                                rprintln!("l: {}, -40: {}", lines, lines - 40);
+                                if lines > 40 {
+                                    string = string
+                                        .lines()
+                                        .skip(lines - 40)
+                                        .collect::<alloc::vec::Vec<&str>>()
+                                        .join("\n");
+                                }
+                                if string.len() > 2100 {
+                                    string = string.chars().skip(string.len() - 2100).collect();
+                                }
+                                rprintln!("lines: {}, len: {}", lines, string.len());
                                 string.push(key_char);
                             } else if key == &Key::Delete {
                                 string.pop();
@@ -276,16 +295,8 @@ const APP: () = {
                                 string.clear();
                             }
                         }
-                        let mut pressed_string = String::new();
-                        write!(
-                            &mut pressed_string,
-                            "{:?}: {}, {}",
-                            keys,
-                            string.len(),
-                            string.capacity()
-                        )
-                        .unwrap();
-                        rprintln!("{}", pressed_string);
+                        rprintln!("{:?}", keys);
+                        display.clear(Rgb565::BLACK).unwrap();
                         let text_box = TextBox::new(&string, bounds).into_styled(textbox_style);
                         text_box.draw(&mut display).unwrap();
                     }
