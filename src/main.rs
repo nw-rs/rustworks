@@ -91,9 +91,7 @@ const APP: () = {
 
         lcd_extd_command.set_high().unwrap();
 
-        let mut lcd_tearing_effect = gpiob.pb11.into_push_pull_output();
-
-        lcd_tearing_effect.set_high().unwrap();
+        let _lcd_tearing_effect = gpiob.pb11.into_floating_input();
 
         let lcd_pins = LcdPins {
             data: (
