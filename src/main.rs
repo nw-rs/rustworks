@@ -7,6 +7,7 @@ extern crate alloc;
 
 use alloc_cortex_m::CortexMHeap;
 use core::alloc::Layout;
+use stm32f7xx_hal::rcc::{HSEClock, HSEClockMode};
 
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
@@ -36,7 +37,7 @@ mod led;
 use keypad::{Key, KeyMatrix, KeyPad};
 use led::Led;
 
-const HCLK: u32 = 100_000_000;
+const HCLK: u32 = 216_000_000;
 const HEAP: usize = 32768;
 
 #[app(device = stm32f7xx_hal::pac, peripherals = true)]
@@ -47,12 +48,19 @@ const APP: () = {
         let start = cortex_m_rt::heap_start() as usize;
         unsafe { ALLOCATOR.init(start, HEAP) }
 
-        let cp: cortex_m::Peripherals = cx.core;
+        let mut cp: cortex_m::Peripherals = cx.core;
 
         let dp: pac::Peripherals = cx.device;
 
+        init_mpu(&mut cp.MPU);
+
         let rcc = dp.RCC.constrain();
-        let clocks = rcc.cfgr.hclk(HCLK.hz()).freeze();
+        let clocks = rcc
+            .cfgr
+            .hse(HSEClock::new(8.mhz(), HSEClockMode::Oscillator))
+            .use_pll()
+            .sysclk(HCLK.hz())
+            .freeze();
         let mut delay = Delay::new(cp.SYST, clocks);
 
         delay.delay_ms(100_u8);
@@ -318,4 +326,46 @@ fn oom(layout: Layout) -> ! {
 fn panic(info: &PanicInfo) -> ! {
     rprintln!("{}", info);
     cortex_m::peripheral::SCB::sys_reset();
+}
+
+fn init_mpu(mpu: &mut cortex_m::peripheral::MPU) {
+    unsafe {
+        const FULL_ACCESS: u32 = 0b011 << 24;
+        const SIZE_512MB: u32 = (29 - 1) << 1;
+        const DEVICE_SHARED: u32 = 0b000001 << 16;
+        const NORMAL_SHARED: u32 = 0b000110 << 16;
+
+        // Flash
+        mpu.rnr.write(0);
+        mpu.rbar.write(0x0000_0000);
+        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | 1);
+
+        // SRAM
+        mpu.rnr.write(1);
+        mpu.rbar.write(0x2000_0000);
+        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | NORMAL_SHARED | 1);
+
+        // Peripherals
+        mpu.rnr.write(2);
+        mpu.rbar.write(0x4000_0000);
+        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | DEVICE_SHARED | 1);
+
+        // FSMC
+        mpu.rnr.write(3);
+        mpu.rbar.write(0x6000_0000);
+        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | DEVICE_SHARED | 1);
+
+        // FSMC
+        mpu.rnr.write(4);
+        mpu.rbar.write(0xA000_0000);
+        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | DEVICE_SHARED | 1);
+
+        // Core peripherals
+        mpu.rnr.write(5);
+        mpu.rbar.write(0xE000_0000);
+        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | 1);
+
+        // Enable MPU
+        mpu.ctrl.write(1);
+    }
 }
