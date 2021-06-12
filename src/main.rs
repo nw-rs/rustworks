@@ -18,8 +18,13 @@ use core::panic::PanicInfo;
 
 use rtic::app;
 
-use stm32f7xx_hal::fmc_lcd::{AccessMode, ChipSelect1, FmcLcd, LcdPins, Timing};
-use stm32f7xx_hal::{delay::Delay, gpio::GpioExt, pac, prelude::*};
+use stm32f7xx_hal::{
+    delay::Delay,
+    fmc_lcd::{ChipSelect1, LcdPins},
+    gpio::GpioExt,
+    pac,
+    prelude::*,
+};
 
 use embedded_graphics::fonts::Font6x8;
 use embedded_graphics::pixelcolor::Rgb565;
@@ -27,15 +32,16 @@ use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::*;
 use embedded_text::prelude::*;
 
-use st7789::{Orientation, ST7789};
-
 use alloc::string::String;
 
+mod display;
 mod keypad;
 mod led;
 
 use keypad::{Key, KeyMatrix, KeyPad};
 use led::Led;
+
+use crate::display::Display;
 
 const HCLK: u32 = 216_000_000;
 const HEAP: usize = 32768;
@@ -86,20 +92,7 @@ const APP: () = {
 
         led.blue();
 
-        let mut backlight_control = gpioe.pe0.into_push_pull_output();
-
-        let mut backlight_state = true;
-        backlight_control.set_high().unwrap();
-
-        let mut lcd_power = gpioc.pc8.into_push_pull_output();
-
-        lcd_power.set_high().unwrap();
-
-        let mut lcd_extd_command = gpiod.pd6.into_push_pull_output();
-
-        lcd_extd_command.set_high().unwrap();
-
-        let _lcd_tearing_effect = gpiob.pb11.into_floating_input();
+        let mut power_state = true;
 
         let lcd_pins = LcdPins {
             data: (
@@ -126,120 +119,25 @@ const APP: () = {
             chip_select: ChipSelect1(gpiod.pd7.into_alternate_af12()),
         };
 
-        rprintln!("timings start");
-
-        let ns_to_cycles = |ns: u32| (HCLK / 1_000_000) * ns;
-
-        let tedge: u32 = 15;
-        let twc: u32 = 66;
-        let trcfm: u32 = 450;
-        let twrl: u32 = 15;
-        let trdlfm: u32 = 355;
-
-        let trdatast = trdlfm + tedge;
-
-        let read_data_cycles = ns_to_cycles(trdatast);
-
-        let read_addrsetup_cycles = ns_to_cycles(trcfm - trdatast);
-
-        let read_timing = Timing::default()
-            .data(read_data_cycles as u8)
-            .address_setup(read_addrsetup_cycles as u8)
-            .access_mode(AccessMode::ModeA);
-
-        let twdatast = twrl + tedge;
-
-        let write_data_cycles = ns_to_cycles(twdatast);
-
-        let write_addrsetup_cycles = ns_to_cycles(twc - twdatast) - 1;
-
-        let write_timing = Timing::default()
-            .data(write_data_cycles as u8)
-            .address_setup(write_addrsetup_cycles as u8)
-            .access_mode(AccessMode::ModeA);
-
-        rprintln!(
-            "tedge: {}, twc: {}, trcfm: {}, twrl: {}, trdlfm: {}, trdatast: {}",
-            tedge,
-            twc,
-            trcfm,
-            twrl,
-            trdlfm,
-            trdatast
+        let mut display = Display::new(
+            lcd_pins,
+            dp.FMC,
+            gpioe.pe1.into_push_pull_output(),
+            gpioc.pc8.into_push_pull_output(),
+            gpioe.pe0.into_push_pull_output(),
+            gpiob.pb11.into_floating_input(),
+            gpiod.pd6.into_push_pull_output(),
+            &mut delay,
         );
-        rprintln!("read: {:?}", read_timing);
-        rprintln!("write: {:?}", write_timing);
-
-        let (_fmc, lcd) = FmcLcd::new(dp.FMC, HCLK.hz(), lcd_pins, &read_timing, &write_timing);
-
-        /*let mut lcd_chip_select = gpiod.pd7.into_push_pull_output();
-
-        lcd_chip_select.set_low().unwrap();
-
-        let mut lcd_read_enable = gpiod.pd4.into_push_pull_output();
-
-        lcd_read_enable.set_high().unwrap();
-
-        let lcd_bus = display_interface_parallel_gpio::Generic16BitBus::new((
-            gpiod.pd14.into_push_pull_output(),
-            gpiod.pd15.into_push_pull_output(),
-            gpiod.pd0.into_push_pull_output(),
-            gpiod.pd1.into_push_pull_output(),
-            gpioe.pe7.into_push_pull_output(),
-            gpioe.pe8.into_push_pull_output(),
-            gpioe.pe9.into_push_pull_output(),
-            gpioe.pe10.into_push_pull_output(),
-            gpioe.pe11.into_push_pull_output(),
-            gpioe.pe12.into_push_pull_output(),
-            gpioe.pe13.into_push_pull_output(),
-            gpioe.pe14.into_push_pull_output(),
-            gpioe.pe15.into_push_pull_output(),
-            gpiod.pd8.into_push_pull_output(),
-            gpiod.pd9.into_push_pull_output(),
-            gpiod.pd10.into_push_pull_output(),
-        ))
-        .unwrap();
-
-        let lcd = display_interface_parallel_gpio::PGPIO16BitInterface::new(
-            lcd_bus,
-            gpiod.pd11.into_push_pull_output(),
-            gpiod.pd5.into_push_pull_output(),
-        );*/
-
-        let mut lcd_reset = gpioe.pe1.into_push_pull_output();
-
-        lcd_reset.set_low().unwrap();
-        delay.delay_ms(5u16);
-        lcd_reset.set_high().unwrap();
-        delay.delay_ms(10u16);
-        lcd_reset.set_low().unwrap();
-        delay.delay_ms(20u16);
-        // Release from reset
-        lcd_reset.set_high().unwrap();
-        delay.delay_ms(10u16);
-
-        let display_width = 320i32;
-        let display_height = 240i32;
-
-        rprintln!("display create");
-
-        let mut display = ST7789::new(lcd, lcd_reset, display_width as u16, display_height as u16);
-
-        rprintln!("display init");
-
-        display.init(&mut delay).unwrap();
-
-        display
-            .set_orientation(Orientation::LandscapeSwapped)
-            .unwrap();
-
-        display.clear(Rgb565::BLACK).unwrap();
 
         let textbox_style = TextBoxStyleBuilder::new(Font6x8)
             .text_color(Rgb565::GREEN)
             .background_color(Rgb565::BLACK)
             .vertical_alignment(Scrolling)
             .build();
+
+        let display_width = 320i32;
+        let display_height = 240i32;
 
         let bounds = Rectangle::new(
             Point::new(3, 5),
@@ -259,17 +157,17 @@ const APP: () = {
             if keys != last_pressed {
                 if !keys.is_empty() {
                     if keys.contains(&Key::Power) {
-                        if backlight_state {
-                            backlight_control.set_low().unwrap();
+                        if power_state {
+                            display.set_backlight(0);
                             led.off();
                             display.clear(Rgb565::BLACK).unwrap();
                             off = true;
-                            backlight_state = false;
+                            power_state = false;
                         } else {
-                            backlight_control.set_high().unwrap();
+                            display.set_backlight(1);
                             led.green();
                             off = false;
-                            backlight_state = true;
+                            power_state = true;
                         }
                     }
 
@@ -282,7 +180,6 @@ const APP: () = {
                                     key_char = key_char.to_ascii_uppercase();
                                 }
                                 let lines = string.lines().count();
-                                rprintln!("l: {}, -40: {}", lines, lines - 40);
                                 if lines > 40 {
                                     string = string
                                         .lines()
@@ -304,7 +201,7 @@ const APP: () = {
                         rprintln!("{:?}", keys);
                         display.clear(Rgb565::BLACK).unwrap();
                         let text_box = TextBox::new(&string, bounds).into_styled(textbox_style);
-                        text_box.draw(&mut display).unwrap();
+                        text_box.draw(&mut display.display).unwrap();
                     }
                 }
                 last_pressed = keys;
