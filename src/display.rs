@@ -1,11 +1,16 @@
 use crate::HCLK;
 
-use alloc::string::String;
-use alloc::vec::Vec;
+use core::fmt::Write;
 
+use alloc::format;
+use alloc::string::String;
+
+use embedded_graphics::style::PrimitiveStyleBuilder;
 use st7789::Orientation;
 use st7789::ST7789;
 
+use embedded_graphics::prelude::*;
+use embedded_graphics::primitives::*;
 use stm32f7xx_hal::delay::Delay;
 use stm32f7xx_hal::fmc_lcd::{AccessMode, ChipSelect1, FmcLcd, Lcd, SubBank1, Timing};
 use stm32f7xx_hal::gpio::gpiob::PB11;
@@ -16,11 +21,20 @@ use stm32f7xx_hal::gpio::{Alternate, Floating, Input, Output, PushPull, AF12};
 use stm32f7xx_hal::pac::FMC;
 use stm32f7xx_hal::prelude::*;
 
+use embedded_graphics::fonts::Font6x8;
 use embedded_graphics::pixelcolor::Rgb565;
-use embedded_graphics::prelude::*;
+use embedded_text::prelude::*;
 
 pub const DISPLAY_WIDTH: u16 = 320;
 pub const DISPLAY_HEIGHT: u16 = 240;
+
+pub const BG_COLOUR: Rgb565 = Rgb565::BLACK;
+pub const TEXT_COLOUR: Rgb565 = Rgb565::GREEN;
+
+const TOP_STRING_SIZE: usize = 2048;
+const TOP_LINES: usize = 38;
+const BOTTOM_STRING_SIZE: usize = 102;
+const BOTTOM_LINES: usize = 3;
 
 type LcdPins = stm32f7xx_hal::fmc_lcd::LcdPins<
     (
@@ -61,13 +75,13 @@ pub type DrawError = <LcdST7789 as DrawTarget<Color>>::Error;
 
 pub struct Display {
     pub display: LcdST7789,
-    lines: Vec<String>,
-    last_line: u8,
+    pub top: String,
+    pub bottom: String,
     power_pin: LcdPowerPin,
     extd_cmd_pin: LcdExtdCmdPin,
-    _tearing_effect_pin: LcdTearingEffectPin,
     backlight_pin: LcdBacklightPin,
     backlight_state: u8,
+    _tearing_effect_pin: LcdTearingEffectPin,
     _fmc: FmcLcd<LcdPins>,
 }
 
@@ -141,19 +155,19 @@ impl Display {
 
         Self {
             display,
+            top: String::with_capacity(TOP_STRING_SIZE),
+            bottom: String::with_capacity(128),
             power_pin,
             backlight_pin,
-            _tearing_effect_pin,
             extd_cmd_pin,
             backlight_state: 1,
+            _tearing_effect_pin,
             _fmc: fmc,
-            lines: Vec::with_capacity(40),
-            last_line: 0,
         }
     }
 
-    pub fn clear(&mut self, color: Color) -> Result<(), DrawError> {
-        self.display.clear(color)
+    pub fn clear(&mut self, color: Color) {
+        self.display.clear(color).unwrap();
     }
 
     pub fn set_backlight(&mut self, target: u8) {
@@ -163,5 +177,91 @@ impl Display {
             self.backlight_pin.set_high().unwrap();
         }
         self.backlight_state = target;
+    }
+
+    pub fn write_bottom_to_top(&mut self) {
+        self.write_top(&format!("\n{}", self.bottom));
+        self.bottom.clear();
+    }
+
+    pub fn write_top(&mut self, text: &str) {
+        if self.top.len() + text.len() > TOP_STRING_SIZE {
+            self.top = self
+                .top
+                .chars()
+                .skip(text.len() + self.top.len() - TOP_STRING_SIZE)
+                .collect();
+        }
+        self.top.write_str(text).unwrap();
+        let lines = self.top.lines().count();
+        if lines > TOP_LINES {
+            self.top = self
+                .top
+                .lines()
+                .skip(lines - TOP_LINES)
+                .collect::<alloc::vec::Vec<&str>>()
+                .join("\n");
+        }
+    }
+
+    pub fn write_bottom(&mut self, text: &str) {
+        if !(self.bottom.len() + text.len() > BOTTOM_STRING_SIZE) {
+            self.bottom.write_str(text).unwrap();
+            let lines = self.bottom.lines().count();
+            if lines > BOTTOM_LINES {
+                self.bottom = self
+                    .bottom
+                    .lines()
+                    .skip(lines - BOTTOM_LINES)
+                    .collect::<alloc::vec::Vec<&str>>()
+                    .join("\n");
+            }
+        }
+    }
+
+    pub fn draw_bottom(&mut self, clear: bool) {
+        let textbox_style = TextBoxStyleBuilder::new(Font6x8)
+            .text_color(Rgb565::GREEN)
+            .background_color(Rgb565::BLACK)
+            .vertical_alignment(Scrolling)
+            .build();
+        let bottom_bounds = Rectangle::new(
+            Point::new(3, DISPLAY_HEIGHT as i32 - 20),
+            Point::new(DISPLAY_WIDTH as i32 - 3, DISPLAY_HEIGHT as i32 - 4),
+        );
+        let bottom_text_box = TextBox::new(&self.bottom, bottom_bounds).into_styled(textbox_style);
+        if clear {
+            bottom_bounds
+                .into_styled(PrimitiveStyleBuilder::new().fill_color(BG_COLOUR).build())
+                .draw(&mut self.display)
+                .unwrap();
+        }
+        bottom_text_box.draw(&mut self.display).unwrap();
+    }
+
+    pub fn draw_top(&mut self, clear: bool) {
+        let textbox_style = TextBoxStyleBuilder::new(Font6x8)
+            .text_color(Rgb565::GREEN)
+            .background_color(Rgb565::BLACK)
+            .vertical_alignment(Scrolling)
+            .build();
+        let top_bounds = Rectangle::new(
+            Point::new(3, 5),
+            Point::new(DISPLAY_WIDTH as i32 - 3, DISPLAY_HEIGHT as i32 - 20),
+        );
+        let top_text_box = TextBox::new(&self.top, top_bounds).into_styled(textbox_style);
+        if clear {
+            top_bounds
+                .into_styled(PrimitiveStyleBuilder::new().fill_color(BG_COLOUR).build())
+                .draw(&mut self.display)
+                .unwrap();
+        }
+        top_text_box.draw(&mut self.display).unwrap();
+    }
+
+    pub fn draw_all(&mut self) {
+        self.clear(BG_COLOUR);
+        self.draw_bottom(false);
+        self.draw_top(false);
     }
 }

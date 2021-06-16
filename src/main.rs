@@ -5,9 +5,9 @@
 
 extern crate alloc;
 
+use alloc::format;
 use alloc_cortex_m::CortexMHeap;
 use core::alloc::Layout;
-use stm32f7xx_hal::rcc::{HSEClock, HSEClockMode};
 
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
@@ -18,6 +18,7 @@ use core::panic::PanicInfo;
 
 use rtic::app;
 
+use stm32f7xx_hal::rcc::{HSEClock, HSEClockMode};
 use stm32f7xx_hal::{
     delay::Delay,
     fmc_lcd::{ChipSelect1, LcdPins},
@@ -25,14 +26,6 @@ use stm32f7xx_hal::{
     pac,
     prelude::*,
 };
-
-use embedded_graphics::fonts::Font6x8;
-use embedded_graphics::pixelcolor::Rgb565;
-use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::*;
-use embedded_text::prelude::*;
-
-use alloc::string::String;
 
 mod display;
 mod keypad;
@@ -130,25 +123,9 @@ const APP: () = {
             &mut delay,
         );
 
-        let textbox_style = TextBoxStyleBuilder::new(Font6x8)
-            .text_color(Rgb565::GREEN)
-            .background_color(Rgb565::BLACK)
-            .vertical_alignment(Scrolling)
-            .build();
-
-        let display_width = 320i32;
-        let display_height = 240i32;
-
-        let bounds = Rectangle::new(
-            Point::new(3, 5),
-            Point::new(display_width - 3, display_height - 5),
-        );
-
         led.green();
 
         let mut last_pressed: heapless::Vec<Key, 46> = heapless::Vec::new();
-
-        let mut string = String::with_capacity(2132);
 
         let mut off = false;
 
@@ -160,7 +137,7 @@ const APP: () = {
                         if power_state {
                             display.set_backlight(0);
                             led.off();
-                            display.clear(Rgb565::BLACK).unwrap();
+                            display.clear(display::BG_COLOUR);
                             off = true;
                             power_state = false;
                         } else {
@@ -172,36 +149,31 @@ const APP: () = {
                     }
 
                     if !off {
-                        let shift = keys.contains(&Key::Shift);
-                        for key in keys.iter() {
-                            let mut key_char = char::from(*key);
-                            if key_char != '\0' {
-                                if shift {
-                                    key_char = key_char.to_ascii_uppercase();
+                        if keys.contains(&Key::EXE) {
+                            let result = rcas::parse_eval(&display.bottom);
+                            display.write_bottom_to_top();
+                            display.draw_all();
+                            if let Ok(num) = result {
+                                display.write_top(&format!("\n{: >51}", num));
+                            }
+                        } else {
+                            let shift = keys.contains(&Key::Shift);
+                            for key in keys.iter() {
+                                let mut key_char = char::from(*key);
+                                if key_char != '\0' {
+                                    if shift {
+                                        key_char = key_char.to_ascii_uppercase();
+                                    }
+                                    let mut tmp = [0u8; 4];
+                                    display.write_bottom(key_char.encode_utf8(&mut tmp));
+                                } else if key == &Key::Delete {
+                                    display.bottom.pop();
+                                } else if key == &Key::Clear {
+                                    display.bottom.clear();
                                 }
-                                let lines = string.lines().count();
-                                if lines > 40 {
-                                    string = string
-                                        .lines()
-                                        .skip(lines - 40)
-                                        .collect::<alloc::vec::Vec<&str>>()
-                                        .join("\n");
-                                }
-                                if string.len() > 2100 {
-                                    string = string.chars().skip(string.len() - 2100).collect();
-                                }
-                                rprintln!("lines: {}, len: {}", lines, string.len());
-                                string.push(key_char);
-                            } else if key == &Key::Delete {
-                                string.pop();
-                            } else if key == &Key::Clear {
-                                string.clear();
+                                display.draw_bottom(true);
                             }
                         }
-                        rprintln!("{:?}", keys);
-                        display.clear(Rgb565::BLACK).unwrap();
-                        let text_box = TextBox::new(&string, bounds).into_styled(textbox_style);
-                        text_box.draw(&mut display.display).unwrap();
                     }
                 }
                 last_pressed = keys;

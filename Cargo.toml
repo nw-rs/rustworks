@@ -34,7 +34,7 @@ bench = false
 opt-level = "s"
 
 [profile.dev]
-opt-level = "s"
+opt-level = "z"
 debug = 1
 debug-assertions = false
 overflow-checks = false
@@ -49,7 +49,7 @@ opt-level = "s"
 
 [profile.release]
 codegen-units = 1
-debug = 1
+debug = true
 panic = "abort"
-opt-level = "s"
+opt-level = "z"
 lto = true
