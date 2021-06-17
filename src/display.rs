@@ -33,7 +33,7 @@ pub const TEXT_COLOUR: Rgb565 = Rgb565::GREEN;
 
 const TOP_STRING_SIZE: usize = 2048;
 const TOP_LINES: usize = 38;
-const BOTTOM_STRING_SIZE: usize = 102;
+const BOTTOM_STRING_SIZE: usize = 104;
 const BOTTOM_LINES: usize = 3;
 
 type LcdPins = stm32f7xx_hal::fmc_lcd::LcdPins<
@@ -204,7 +204,7 @@ impl Display {
         }
     }
 
-    pub fn write_bottom(&mut self, text: &str) {
+    pub fn write_bottom(&mut self, text: &str, redraw: bool) -> bool {
         if !(self.bottom.len() + text.len() > BOTTOM_STRING_SIZE) {
             self.bottom.write_str(text).unwrap();
             let lines = self.bottom.lines().count();
@@ -216,6 +216,26 @@ impl Display {
                     .collect::<alloc::vec::Vec<&str>>()
                     .join("\n");
             }
+            if redraw {
+                self.draw_bottom(true);
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn clear_bottom(&mut self, redraw: bool) {
+        self.bottom.clear();
+        if redraw {
+            self.draw_bottom(true);
+        }
+    }
+
+    pub fn pop_bottom(&mut self, redraw: bool) {
+        self.bottom.pop();
+        if redraw {
+            self.draw_bottom(true);
         }
     }
 
@@ -226,8 +246,8 @@ impl Display {
             .vertical_alignment(Scrolling)
             .build();
         let bottom_bounds = Rectangle::new(
-            Point::new(3, DISPLAY_HEIGHT as i32 - 20),
-            Point::new(DISPLAY_WIDTH as i32 - 3, DISPLAY_HEIGHT as i32 - 4),
+            Point::new(3, DISPLAY_HEIGHT as i32 - 16),
+            Point::new(DISPLAY_WIDTH as i32 - 3, DISPLAY_HEIGHT as i32),
         );
         let bottom_text_box = TextBox::new(&self.bottom, bottom_bounds).into_styled(textbox_style);
         if clear {

@@ -8,6 +8,7 @@ extern crate alloc;
 use alloc::format;
 use alloc_cortex_m::CortexMHeap;
 use core::alloc::Layout;
+use stm32f7xx_hal::qspi::{Qspi, QspiTransaction};
 
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
@@ -49,9 +50,26 @@ const APP: () = {
 
         let mut cp: cortex_m::Peripherals = cx.core;
 
-        let dp: pac::Peripherals = cx.device;
+        let mut dp: pac::Peripherals = cx.device;
 
         init_mpu(&mut cp.MPU);
+
+        let gpioa = dp.GPIOA.split();
+        let gpioc = dp.GPIOC.split();
+        let gpiob = dp.GPIOB.split();
+        let gpiod = dp.GPIOD.split();
+        let gpioe = dp.GPIOE.split();
+
+        let _qspi_flash_pins = (
+            gpiob.pb2.into_alternate_af9(),
+            gpiob.pb6.into_alternate_af10(),
+            gpioc.pc9.into_alternate_af9(),
+            gpiod.pd12.into_alternate_af9(),
+            gpiod.pd13.into_alternate_af9(),
+            gpioe.pe2.into_alternate_af9(),
+        );
+
+        let mut qspi = Qspi::new(&mut dp.RCC, dp.QUADSPI, 23, 3);
 
         let rcc = dp.RCC.constrain();
         let clocks = rcc
@@ -63,12 +81,6 @@ const APP: () = {
         let mut delay = Delay::new(cp.SYST, clocks);
 
         delay.delay_ms(100_u8);
-
-        let gpioa = dp.GPIOA.split();
-        let gpioc = dp.GPIOC.split();
-        let gpiob = dp.GPIOB.split();
-        let gpiod = dp.GPIOD.split();
-        let gpioe = dp.GPIOE.split();
 
         let keymatrix = KeyMatrix::new(
             gpioa.pa0, gpioa.pa1, gpioa.pa2, gpioa.pa3, gpioa.pa4, gpioa.pa5, gpioa.pa6, gpioa.pa7,
@@ -123,11 +135,25 @@ const APP: () = {
             &mut delay,
         );
 
-        led.green();
+        let erase_transaction = QspiTransaction {
+            iwidth: 0,
+            awidth: 0,
+            dwidth: 0,
+            instruction: 0xC7,
+            address: None,
+            dummy: 0,
+            data_len: None,
+        };
+
+        qspi.polling_write(&[], erase_transaction).unwrap();
 
         let mut last_pressed: heapless::Vec<Key, 46> = heapless::Vec::new();
 
         let mut off = false;
+
+        led.green();
+
+        let mut key_count = 0usize;
 
         loop {
             let keys = keypad.read(&mut delay);
@@ -150,12 +176,12 @@ const APP: () = {
 
                     if !off {
                         if keys.contains(&Key::EXE) {
-                            let result = rcas::parse_eval(&display.bottom);
+                            //let result = rcas::parse_eval(&display.bottom);
                             display.write_bottom_to_top();
+                            //if let Ok(num) = result {
+                            display.write_top(&format!("\n{: >52}", key_count));
+                            //}
                             display.draw_all();
-                            if let Ok(num) = result {
-                                display.write_top(&format!("\n{: >51}", num));
-                            }
                         } else {
                             let shift = keys.contains(&Key::Shift);
                             for key in keys.iter() {
@@ -165,13 +191,14 @@ const APP: () = {
                                         key_char = key_char.to_ascii_uppercase();
                                     }
                                     let mut tmp = [0u8; 4];
-                                    display.write_bottom(key_char.encode_utf8(&mut tmp));
+                                    if display.write_bottom(key_char.encode_utf8(&mut tmp), true) {
+                                        key_count += 1;
+                                    }
                                 } else if key == &Key::Delete {
-                                    display.bottom.pop();
+                                    display.pop_bottom(true);
                                 } else if key == &Key::Clear {
-                                    display.bottom.clear();
+                                    display.clear_bottom(true);
                                 }
-                                display.draw_bottom(true);
                             }
                         }
                     }
