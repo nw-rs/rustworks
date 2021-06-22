@@ -8,7 +8,6 @@ extern crate alloc;
 use alloc::format;
 use alloc_cortex_m::CortexMHeap;
 use core::alloc::Layout;
-use stm32f7xx_hal::qspi::{Qspi, QspiTransaction};
 
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
@@ -29,6 +28,7 @@ use stm32f7xx_hal::{
 };
 
 mod display;
+mod external_flash;
 mod keypad;
 mod led;
 
@@ -60,7 +60,7 @@ const APP: () = {
         let gpiod = dp.GPIOD.split();
         let gpioe = dp.GPIOE.split();
 
-        let _qspi_flash_pins = (
+        let qspi_pins = (
             gpiob.pb2.into_alternate_af9(),
             gpiob.pb6.into_alternate_af10(),
             gpioc.pc9.into_alternate_af9(),
@@ -69,7 +69,8 @@ const APP: () = {
             gpioe.pe2.into_alternate_af9(),
         );
 
-        let mut qspi = Qspi::new(&mut dp.RCC, dp.QUADSPI, 23, 3);
+        let mut external_flash =
+            external_flash::ExternalFlash::new(&mut dp.RCC, dp.QUADSPI, qspi_pins);
 
         let rcc = dp.RCC.constrain();
         let clocks = rcc
@@ -134,18 +135,6 @@ const APP: () = {
             gpiod.pd6.into_push_pull_output(),
             &mut delay,
         );
-
-        let erase_transaction = QspiTransaction {
-            iwidth: 0,
-            awidth: 0,
-            dwidth: 0,
-            instruction: 0xC7,
-            address: None,
-            dummy: 0,
-            data_len: None,
-        };
-
-        qspi.polling_write(&[], erase_transaction).unwrap();
 
         let mut last_pressed: heapless::Vec<Key, 46> = heapless::Vec::new();
 
