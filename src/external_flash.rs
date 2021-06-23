@@ -1,24 +1,28 @@
 use core::convert::TryInto;
 
+use alloc::vec::Vec;
 use cortex_m::asm;
+use stm32f7xx_hal::delay::Delay;
 use stm32f7xx_hal::gpio::gpiob::{PB2, PB6};
 use stm32f7xx_hal::gpio::gpioc::PC9;
 use stm32f7xx_hal::gpio::gpiod::{PD12, PD13};
 use stm32f7xx_hal::gpio::gpioe::PE2;
 use stm32f7xx_hal::gpio::{Alternate, AF10, AF9};
+use stm32f7xx_hal::prelude::*;
 use stm32f7xx_hal::{pac::QUADSPI, pac::RCC};
 
 // 2^23 = 8MB
 const FLASH_ADDRESS_SIZE: u8 = 23;
 const ADDRESS_WIDTH: u8 = 3;
 const FLASH_SIZE: u32 = 8388608;
+const DEFAULT_WIDTH: u8 = QspiWidth::QUAD;
 
 struct QspiWidth;
 
 #[allow(dead_code)]
 impl QspiWidth {
     pub const NONE: u8 = 0b00;
-    pub const SING: u8 = 0b01;
+    pub const SINGLE: u8 = 0b01;
     pub const DUAL: u8 = 0b10;
     pub const QUAD: u8 = 0b11;
 }
@@ -70,6 +74,7 @@ enum Command {
 
 pub struct ExternalFlash {
     qspi: QUADSPI,
+    width: u8,
 }
 
 impl ExternalFlash {
@@ -99,10 +104,21 @@ impl ExternalFlash {
             qspi.dcr.write(|w| w.ckmode().set_bit());
         }
 
-        Self { qspi }
+        Self {
+            qspi,
+            width: QspiWidth::SINGLE,
+        }
     }
 
-    pub fn init(&mut self) {}
+    pub fn init(&mut self, delay: &mut Delay) {
+        self.send_command(Command::ReleaseDeepPowerDown, self.width);
+        delay.delay_us(3_u32);
+        if self.width == QspiWidth::SINGLE && DEFAULT_WIDTH == QspiWidth::QUAD {
+            self.send_command(Command::WriteEnable, self.width);
+            self.send_command(Command::EnableQPI, self.width);
+            self.width = QspiWidth::QUAD;
+        }
+    }
 
     fn send_command_full(
         &mut self,
@@ -113,7 +129,7 @@ impl ExternalFlash {
         alt_bytes: u32,
         number_alt_bytes: u8,
         dummy_cycles: u8,
-        data: &mut Option<&mut [u32]>,
+        data: Option<&mut [u32]>,
         data_length: u32,
     ) {
         assert!(mode < 4); // There are only 4 modes.
@@ -188,5 +204,56 @@ impl ExternalFlash {
                 }
             }
         }
+    }
+
+    fn send_command(&mut self, command: Command, width: u8) {
+        self.send_command_full(
+            QspiMode::INDIRECT_WRITE,
+            width,
+            command,
+            FLASH_SIZE,
+            0,
+            0,
+            0,
+            None,
+            0,
+        )
+    }
+
+    fn send_write_command(&mut self, command: Command, address: u32, data: &mut [u32], width: u8) {
+        let data_length = data.len() as u32;
+        self.send_command_full(
+            QspiMode::INDIRECT_WRITE,
+            width,
+            command,
+            address,
+            0,
+            0,
+            0,
+            Some(data),
+            data_length,
+        )
+    }
+
+    fn send_read_command(
+        &mut self,
+        command: Command,
+        address: u32,
+        data_length: u32,
+        width: u8,
+    ) -> Vec<u32> {
+        let mut data: Vec<u32> = Vec::with_capacity(data_length as usize);
+        self.send_command_full(
+            QspiMode::INDIRECT_READ,
+            width,
+            command,
+            address,
+            0,
+            0,
+            0,
+            Some(&mut data),
+            data_length,
+        );
+        data
     }
 }
