@@ -38,13 +38,14 @@ use led::Led;
 use crate::display::Display;
 
 const HCLK: u32 = 216_000_000;
+
 const HEAP: usize = 32768;
 
 #[app(device = stm32f7xx_hal::pac, peripherals = true)]
 const APP: () = {
     #[init]
     fn init(cx: init::Context) {
-        rtt_init_print!();
+        rtt_init_print!(BlockIfFull, 4096);
         let start = cortex_m_rt::heap_start() as usize;
         unsafe { ALLOCATOR.init(start, HEAP) }
 
@@ -81,7 +82,11 @@ const APP: () = {
             .freeze();
         let mut delay = Delay::new(cp.SYST, clocks);
 
+        rprintln!("Starting flash init...");
         external_flash.init(&mut delay);
+
+        rprintln!("Starting flash erase...");
+        external_flash.mass_erase();
 
         delay.delay_ms(100_u8);
 

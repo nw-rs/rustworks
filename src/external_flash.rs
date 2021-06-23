@@ -1,7 +1,5 @@
-use core::convert::TryInto;
-
-use alloc::vec::Vec;
 use cortex_m::asm;
+use rtt_target::rprintln;
 use stm32f7xx_hal::delay::Delay;
 use stm32f7xx_hal::gpio::gpiob::{PB2, PB6};
 use stm32f7xx_hal::gpio::gpioc::PC9;
@@ -94,14 +92,17 @@ impl ExternalFlash {
         unsafe {
             // Single flash mode with a QSPI clock prescaler of 2 (216 / 2 = 108 MHz), FIFO
             // threshold only matters for DMA and is set to 4 to allow word sized DMA requests
-            qspi.cr
-                .write_with_zero(|w| w.prescaler().bits(1).fthres().bits(3).en().set_bit());
 
-            // Set the device size
-            qspi.dcr.write(|w| w.fsize().bits(FLASH_ADDRESS_SIZE - 1));
-            // Set chip select high time
-            qspi.dcr.write(|w| w.csht().bits(2));
-            qspi.dcr.write(|w| w.ckmode().set_bit());
+            qspi.dcr.write(|w| {
+                w.fsize()
+                    .bits(FLASH_ADDRESS_SIZE - 1)
+                    .csht()
+                    .bits(2)
+                    .ckmode()
+                    .set_bit()
+            });
+            qspi.cr
+                .write_with_zero(|w| w.prescaler().bits(1).en().set_bit());
         }
 
         Self {
@@ -111,28 +112,29 @@ impl ExternalFlash {
     }
 
     pub fn init(&mut self, delay: &mut Delay) {
-        self.send_command(Command::ReleaseDeepPowerDown, self.width);
+        rprintln!("Releasing deep power down...");
+        self.send_command(Command::ReleaseDeepPowerDown);
         delay.delay_us(3_u32);
         if self.width == QspiWidth::SINGLE && DEFAULT_WIDTH == QspiWidth::QUAD {
-            self.send_command(Command::WriteEnable, self.width);
+            rprintln!("Enabling write...");
+            self.send_command(Command::WriteEnable);
             let mut status_two = [2u32];
+            rprintln!("Waiting...");
             self.wait();
-            self.send_write_command(
-                Command::WriteStatusRegister2,
-                FLASH_SIZE,
-                &mut status_two,
-                self.width,
-            );
-            self.wait();
-            self.send_command(Command::EnableQPI, self.width);
+            rprintln!("Writing status two...");
+            self.send_write_command(Command::WriteStatusRegister2, FLASH_SIZE, &mut status_two);
             self.width = QspiWidth::QUAD;
+            rprintln!("Waiting...");
+            self.wait();
+            rprintln!("Enabling QPI");
+            self.send_command(Command::EnableQPI);
         }
+        self.set_memory_mapped();
     }
 
     fn send_command_full(
         &mut self,
         mode: u8,
-        width: u8,
         command: Command,
         address: u32,
         alt_bytes: u32,
@@ -142,7 +144,6 @@ impl ExternalFlash {
         data_length: u32,
     ) {
         assert!(mode < 4); // There are only 4 modes.
-        assert!(width < 4); // There are only 4 valid widths
         if mode == QspiMode::MEMORY_MAPPED {
             let previous_mode = self.qspi.ccr.read().fmode().bits();
             if previous_mode == QspiMode::INDIRECT_WRITE || previous_mode == QspiMode::INDIRECT_READ
@@ -168,7 +169,7 @@ impl ExternalFlash {
         unsafe {
             self.qspi.ccr.write(|w| w.fmode().bits(mode));
             if data.is_some() || mode == QspiMode::MEMORY_MAPPED {
-                self.qspi.ccr.write(|w| w.dmode().bits(width));
+                self.qspi.ccr.write(|w| w.dmode().bits(self.width));
             }
             if mode != QspiMode::MEMORY_MAPPED {
                 self.qspi
@@ -177,19 +178,25 @@ impl ExternalFlash {
             }
             self.qspi.ccr.write(|w| w.dcyc().bits(dummy_cycles));
             if number_alt_bytes > 0 {
-                self.qspi
-                    .ccr
-                    .write(|w| w.abmode().bits(width).absize().bits(number_alt_bytes - 1));
+                self.qspi.ccr.write(|w| {
+                    w.abmode()
+                        .bits(self.width)
+                        .absize()
+                        .bits(number_alt_bytes - 1)
+                });
                 self.qspi.abr.write(|w| w.bits(alt_bytes));
             }
             if address != FLASH_SIZE || mode == QspiMode::MEMORY_MAPPED {
-                self.qspi
-                    .ccr
-                    .write(|w| w.admode().bits(width).adsize().bits(QspiSize::THREE_BYTES));
+                self.qspi.ccr.write(|w| {
+                    w.admode()
+                        .bits(self.width)
+                        .adsize()
+                        .bits(QspiSize::THREE_BYTES)
+                });
             }
             self.qspi
                 .ccr
-                .write(|w| w.imode().bits(width).instruction().bits(command as u8));
+                .write(|w| w.imode().bits(self.width).instruction().bits(command as u8));
             if mode == QspiMode::MEMORY_MAPPED {
                 self.qspi.ccr.write(|w| w.sioo().set_bit());
             }
@@ -208,17 +215,18 @@ impl ExternalFlash {
                 }
             }
             if mode != QspiMode::MEMORY_MAPPED {
+                rprintln!("Read SR busy bit:  {}", self.qspi.sr.read().busy().bit());
                 while self.qspi.sr.read().busy().bit() {
                     asm::nop();
                 }
+                rprintln!("Done");
             }
         }
     }
 
-    fn send_command(&mut self, command: Command, width: u8) {
+    fn send_command(&mut self, command: Command) {
         self.send_command_full(
             QspiMode::INDIRECT_WRITE,
-            width,
             command,
             FLASH_SIZE,
             0,
@@ -229,11 +237,10 @@ impl ExternalFlash {
         )
     }
 
-    fn send_write_command(&mut self, command: Command, address: u32, data: &mut [u32], width: u8) {
+    fn send_write_command(&mut self, command: Command, address: u32, data: &mut [u32]) {
         let data_length = data.len() as u32;
         self.send_command_full(
             QspiMode::INDIRECT_WRITE,
-            width,
             command,
             address,
             0,
@@ -244,11 +251,10 @@ impl ExternalFlash {
         )
     }
 
-    fn send_read_command(&mut self, command: Command, address: u32, data: &mut [u32], width: u8) {
+    fn send_read_command(&mut self, command: Command, address: u32, data: &mut [u32]) {
         let data_length = data.len() as u32;
         self.send_command_full(
             QspiMode::INDIRECT_READ,
-            width,
             command,
             address,
             0,
@@ -257,20 +263,60 @@ impl ExternalFlash {
             Some(data),
             data_length,
         )
+    }
+
+    fn set_memory_mapped(&mut self) {
+        self.send_command_full(
+            QspiMode::MEMORY_MAPPED,
+            Command::FastReadQuadIO,
+            FLASH_SIZE,
+            0xA0,
+            1,
+            0,
+            None,
+            0,
+        )
+    }
+
+    fn unset_memory_mapped(&mut self) {
+        self.send_command_full(
+            QspiMode::INDIRECT_READ,
+            Command::FastReadQuadIO,
+            0,
+            !(0xA),
+            1,
+            0,
+            Some(&mut [0u32]),
+            1,
+        );
     }
 
     fn wait(&mut self) {
         let mut status_one = [0u32];
         loop {
-            self.send_read_command(
-                Command::ReadStatusRegister1,
-                FLASH_SIZE,
-                &mut status_one,
-                self.width,
-            );
+            self.send_read_command(Command::ReadStatusRegister1, FLASH_SIZE, &mut status_one);
             if status_one[0] & 1 == 1 {
                 break;
             }
         }
+    }
+
+    fn unlock_flash(&mut self) {
+        self.send_command(Command::WriteEnable);
+        self.wait();
+        let mut status_two = [0u32];
+        self.send_read_command(Command::ReadStatusRegister2, FLASH_SIZE, &mut status_two);
+        let mut registers = [0u32, 2 & status_two[0]];
+        self.send_write_command(Command::WriteStatusRegister, FLASH_SIZE, &mut registers);
+    }
+
+    pub fn mass_erase(&mut self) {
+        self.unset_memory_mapped();
+        self.unlock_flash();
+        self.send_command(Command::WriteEnable);
+        self.wait();
+        self.send_command(Command::ChipErase);
+        self.wait();
+        self.set_memory_mapped();
     }
 }
