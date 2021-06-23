@@ -81,6 +81,8 @@ const APP: () = {
             .freeze();
         let mut delay = Delay::new(cp.SYST, clocks);
 
+        external_flash.init(&mut delay);
+
         delay.delay_ms(100_u8);
 
         let keymatrix = KeyMatrix::new(

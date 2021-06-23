@@ -115,6 +115,15 @@ impl ExternalFlash {
         delay.delay_us(3_u32);
         if self.width == QspiWidth::SINGLE && DEFAULT_WIDTH == QspiWidth::QUAD {
             self.send_command(Command::WriteEnable, self.width);
+            let mut status_two = [2u32];
+            self.wait();
+            self.send_write_command(
+                Command::WriteStatusRegister2,
+                FLASH_SIZE,
+                &mut status_two,
+                self.width,
+            );
+            self.wait();
             self.send_command(Command::EnableQPI, self.width);
             self.width = QspiWidth::QUAD;
         }
@@ -235,14 +244,8 @@ impl ExternalFlash {
         )
     }
 
-    fn send_read_command(
-        &mut self,
-        command: Command,
-        address: u32,
-        data_length: u32,
-        width: u8,
-    ) -> Vec<u32> {
-        let mut data: Vec<u32> = Vec::with_capacity(data_length as usize);
+    fn send_read_command(&mut self, command: Command, address: u32, data: &mut [u32], width: u8) {
+        let data_length = data.len() as u32;
         self.send_command_full(
             QspiMode::INDIRECT_READ,
             width,
@@ -251,9 +254,23 @@ impl ExternalFlash {
             0,
             0,
             0,
-            Some(&mut data),
+            Some(data),
             data_length,
-        );
-        data
+        )
+    }
+
+    fn wait(&mut self) {
+        let mut status_one = [0u32];
+        loop {
+            self.send_read_command(
+                Command::ReadStatusRegister1,
+                FLASH_SIZE,
+                &mut status_one,
+                self.width,
+            );
+            if status_one[0] & 1 == 1 {
+                break;
+            }
+        }
     }
 }
