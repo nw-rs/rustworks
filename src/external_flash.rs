@@ -1,5 +1,4 @@
 use cortex_m::asm;
-use rtt_target::rprintln;
 use stm32f7xx_hal::delay::Delay;
 use stm32f7xx_hal::gpio::gpiob::{PB2, PB6};
 use stm32f7xx_hal::gpio::gpioc::PC9;
@@ -13,7 +12,6 @@ use stm32f7xx_hal::{pac::QUADSPI, pac::RCC};
 const FLASH_ADDRESS_SIZE: u8 = 23;
 const ADDRESS_WIDTH: u8 = 3;
 const FLASH_SIZE: u32 = 8388608;
-const DEFAULT_WIDTH: u8 = QspiWidth::QUAD;
 
 struct QspiWidth;
 
@@ -25,6 +23,7 @@ impl QspiWidth {
     pub const QUAD: u8 = 0b11;
 }
 
+/// The different QSPI functional modes.
 struct QspiMode;
 
 #[allow(dead_code)]
@@ -35,6 +34,7 @@ impl QspiMode {
     pub const MEMORY_MAPPED: u8 = 0b11;
 }
 
+/// The number of bytes required to specify addresses on the chip.
 struct QspiSize;
 
 #[allow(dead_code)]
@@ -45,6 +45,7 @@ impl QspiSize {
     pub const FOUR_BYTES: u8 = 0b11;
 }
 
+/// Commands (instructions) that can be sent to the flash chip.
 #[repr(u8)]
 enum Command {
     ReadStatusRegister1 = 0x05,
@@ -73,6 +74,7 @@ enum Command {
 pub struct ExternalFlash {
     qspi: QUADSPI,
     width: u8,
+    initialised: bool,
 }
 
 impl ExternalFlash {
@@ -89,47 +91,50 @@ impl ExternalFlash {
         ),
     ) -> Self {
         rcc.ahb3enr.modify(|_, w| w.qspien().set_bit());
-        unsafe {
-            // Single flash mode with a QSPI clock prescaler of 2 (216 / 2 = 108 MHz), FIFO
-            // threshold only matters for DMA and is set to 4 to allow word sized DMA requests
+        // Single flash mode with a QSPI clock prescaler of 2 (216 / 2 = 108 MHz), FIFO
+        // threshold only matters for DMA and is set to 4 to allow word sized DMA requests
 
-            qspi.dcr.write(|w| {
-                w.fsize()
-                    .bits(FLASH_ADDRESS_SIZE - 1)
-                    .csht()
-                    .bits(2)
-                    .ckmode()
-                    .set_bit()
-            });
-            qspi.cr
-                .write_with_zero(|w| w.prescaler().bits(1).en().set_bit());
-        }
+        // Configure controller for flash chip.
+        qspi.dcr.write_with_zero(|w| unsafe {
+            w.fsize()
+                .bits(FLASH_ADDRESS_SIZE - 1)
+                .csht()
+                .bits(2)
+                .ckmode()
+                .set_bit()
+        });
+        qspi.cr
+            .write_with_zero(|w| unsafe { w.prescaler().bits(1).en().set_bit() });
 
         Self {
             qspi,
+            // Chip initially expects commands in SPI mode.
             width: QspiWidth::SINGLE,
+            initialised: false,
         }
     }
 
+    /// Turns on the chip and tells it to switch to QPI mode.
     pub fn init(&mut self, delay: &mut Delay) {
-        rprintln!("Releasing deep power down...");
+        // The chip should not be initialised twice.
+        assert!(!self.initialised);
+        // Turn on the chip.
         self.send_command(Command::ReleaseDeepPowerDown);
         delay.delay_us(3_u32);
-        if self.width == QspiWidth::SINGLE && DEFAULT_WIDTH == QspiWidth::QUAD {
-            rprintln!("Enabling write...");
-            self.send_command(Command::WriteEnable);
-            let mut status_two = [2u32];
-            rprintln!("Waiting...");
-            self.wait();
-            rprintln!("Writing status two...");
-            self.send_write_command(Command::WriteStatusRegister2, FLASH_SIZE, &mut status_two);
-            self.width = QspiWidth::QUAD;
-            rprintln!("Waiting...");
-            self.wait();
-            rprintln!("Enabling QPI");
-            self.send_command(Command::EnableQPI);
-        }
+        // Enable writing to the chip so that the status register can be changed.
+        self.send_command(Command::WriteEnable);
+        self.wait();
+        // Set QPI to enabled in the chip's status register.
+        self.send_write_command(Command::WriteStatusRegister2, FLASH_SIZE, &mut [0b00000010]);
+        self.wait();
+        // Enable QPI on the chip.
+        self.send_command(Command::EnableQPI);
+        // Now that QPI is enabled the default command width should be QUAD.
+        self.width = QspiWidth::QUAD;
+        // Configure number of dummy cycles for QPI read instructions.
+        self.send_write_command(Command::SetReadParameters, FLASH_SIZE, &mut [0b0010000]);
         self.set_memory_mapped();
+        self.initialised = true;
     }
 
     fn send_command_full(
@@ -144,6 +149,7 @@ impl ExternalFlash {
         data_length: u32,
     ) {
         assert!(mode < 4); // There are only 4 modes.
+
         if mode == QspiMode::MEMORY_MAPPED {
             let previous_mode = self.qspi.ccr.read().fmode().bits();
             if previous_mode == QspiMode::INDIRECT_WRITE || previous_mode == QspiMode::INDIRECT_READ
@@ -162,64 +168,74 @@ impl ExternalFlash {
                 asm::nop();
             }
         }
+
         assert!(
             self.qspi.ccr.read().fmode() != QspiMode::MEMORY_MAPPED
                 || self.qspi.sr.read().busy().bit()
         );
-        unsafe {
-            self.qspi.ccr.write(|w| w.fmode().bits(mode));
+
+        self.qspi.ccr.write_with_zero(|w| {
             if data.is_some() || mode == QspiMode::MEMORY_MAPPED {
-                self.qspi.ccr.write(|w| w.dmode().bits(self.width));
+                unsafe {
+                    w.dmode().bits(self.width);
+                }
             }
             if mode != QspiMode::MEMORY_MAPPED {
-                self.qspi
-                    .dlr
-                    .write(|w| w.bits(if data_length > 0 { data_length - 1 } else { 0 }));
+                self.qspi.dlr.write(|w| unsafe {
+                    w.bits(if data_length > 0 { data_length - 1 } else { 0 })
+                });
             }
-            self.qspi.ccr.write(|w| w.dcyc().bits(dummy_cycles));
+            unsafe {
+                w.dcyc().bits(dummy_cycles);
+            }
             if number_alt_bytes > 0 {
-                self.qspi.ccr.write(|w| {
+                unsafe {
                     w.abmode()
                         .bits(self.width)
                         .absize()
-                        .bits(number_alt_bytes - 1)
-                });
-                self.qspi.abr.write(|w| w.bits(alt_bytes));
+                        .bits(number_alt_bytes - 1);
+                }
+                self.qspi.abr.write(|w| unsafe { w.bits(alt_bytes) });
             }
+
             if address != FLASH_SIZE || mode == QspiMode::MEMORY_MAPPED {
-                self.qspi.ccr.write(|w| {
+                unsafe {
                     w.admode()
                         .bits(self.width)
                         .adsize()
-                        .bits(QspiSize::THREE_BYTES)
-                });
+                        .bits(QspiSize::THREE_BYTES);
+                }
             }
-            self.qspi
-                .ccr
-                .write(|w| w.imode().bits(self.width).instruction().bits(command as u8));
+            unsafe {
+                w.imode().bits(self.width).instruction().bits(command as u8);
+            }
             if mode == QspiMode::MEMORY_MAPPED {
-                self.qspi.ccr.write(|w| w.sioo().set_bit());
+                w.sioo().set_bit();
             }
-            if address != FLASH_SIZE {
-                self.qspi.ar.write(|w| w.bits(address));
-            }
-            if let Some(data) = data {
-                if mode == QspiMode::INDIRECT_WRITE {
-                    for num in data.iter() {
-                        self.qspi.dr.write(|w| w.bits(*num));
-                    }
-                } else if mode == QspiMode::INDIRECT_READ {
-                    for i in 0..(data_length as usize) {
-                        data[i] = self.qspi.dr.read().bits();
-                    }
+            w
+        });
+
+        if address != FLASH_SIZE {
+            self.qspi.ar.write(|w| unsafe { w.bits(address) });
+        }
+
+        if let Some(data) = data {
+            if mode == QspiMode::INDIRECT_WRITE {
+                for num in data.iter() {
+                    self.qspi.dr.write(|w| unsafe { w.bits(*num) });
+                }
+            } else if mode == QspiMode::INDIRECT_READ {
+                for i in 0..(data_length as usize) {
+                    data[i] = self.qspi.dr.read().bits();
                 }
             }
-            if mode != QspiMode::MEMORY_MAPPED {
-                rprintln!("Read SR busy bit:  {}", self.qspi.sr.read().busy().bit());
-                while self.qspi.sr.read().busy().bit() {
-                    asm::nop();
-                }
-                rprintln!("Done");
+        }
+
+        // Wait for command to be sent unless in memory mapped mode because then busy does not fall
+        // unless there is a timeout, an abort or the peripheral is disabled.
+        if mode != QspiMode::MEMORY_MAPPED {
+            while self.qspi.sr.read().busy().bit_is_set() {
+                asm::nop();
             }
         }
     }
@@ -295,7 +311,7 @@ impl ExternalFlash {
         let mut status_one = [0u32];
         loop {
             self.send_read_command(Command::ReadStatusRegister1, FLASH_SIZE, &mut status_one);
-            if status_one[0] & 1 == 1 {
+            if status_one[0] & 1 != 1 {
                 break;
             }
         }

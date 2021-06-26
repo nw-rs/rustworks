@@ -45,7 +45,9 @@ const HEAP: usize = 32768;
 const APP: () = {
     #[init]
     fn init(cx: init::Context) {
+        // Initialize RTT printing (for debugging).
         rtt_init_print!(BlockIfFull, 4096);
+        // Initialize the heap.
         let start = cortex_m_rt::heap_start() as usize;
         unsafe { ALLOCATOR.init(start, HEAP) }
 
@@ -61,6 +63,8 @@ const APP: () = {
         let gpiod = dp.GPIOD.split();
         let gpioe = dp.GPIOE.split();
 
+        // Take ownership of the QSPI pins (to prevent them from being messed with later) and set
+        // them to the correct modes.
         let qspi_pins = (
             gpiob.pb2.into_alternate_af9(),
             gpiob.pb6.into_alternate_af10(),
@@ -70,9 +74,11 @@ const APP: () = {
             gpioe.pe2.into_alternate_af9(),
         );
 
+        // Setup external flash over QSPI.
         let mut external_flash =
             external_flash::ExternalFlash::new(&mut dp.RCC, dp.QUADSPI, qspi_pins);
 
+        // Configure the system clocks.
         let rcc = dp.RCC.constrain();
         let clocks = rcc
             .cfgr
@@ -82,14 +88,14 @@ const APP: () = {
             .freeze();
         let mut delay = Delay::new(cp.SYST, clocks);
 
-        rprintln!("Starting flash init...");
+        // Initialize the external flash chip.
         external_flash.init(&mut delay);
 
-        rprintln!("Starting flash erase...");
         external_flash.mass_erase();
 
         delay.delay_ms(100_u8);
 
+        // Setup the keypad for reading.
         let keymatrix = KeyMatrix::new(
             gpioa.pa0, gpioa.pa1, gpioa.pa2, gpioa.pa3, gpioa.pa4, gpioa.pa5, gpioa.pa6, gpioa.pa7,
             gpioa.pa8, gpioc.pc0, gpioc.pc1, gpioc.pc2, gpioc.pc3, gpioc.pc4, gpioc.pc5,
@@ -97,6 +103,7 @@ const APP: () = {
 
         let mut keypad = KeyPad::new(keymatrix);
 
+        // Setup the LED (currently just using it with 7 colours or off).
         let mut led = Led::new(
             gpiob.pb4.into_push_pull_output(),
             gpiob.pb5.into_push_pull_output(),
@@ -107,6 +114,7 @@ const APP: () = {
 
         let mut power_state = true;
 
+        // Take onwership of the LCD pins and set them to the correct modes.
         let lcd_pins = LcdPins {
             data: (
                 gpiod.pd14.into_alternate_af12(),
@@ -132,6 +140,7 @@ const APP: () = {
             chip_select: ChipSelect1(gpiod.pd7.into_alternate_af12()),
         };
 
+        // Setup the display.
         let mut display = Display::new(
             lcd_pins,
             dp.FMC,
@@ -143,26 +152,39 @@ const APP: () = {
             &mut delay,
         );
 
+        // Holds the keys pressed on the previous scan.
         let mut last_pressed: heapless::Vec<Key, 46> = heapless::Vec::new();
 
+        // Whether the calculator is on or off, currently just disables the backlight, clears the
+        // screen and stops any key presses except for `Key::Power` from being evaluated.
         let mut off = false;
 
         led.green();
 
+        // Total number of keypresses.
         let mut key_count = 0usize;
 
         loop {
+            // Read the keys currently pressed.
             let keys = keypad.read(&mut delay);
+            // Make sure that the keys currently pressed are not the same as the last scan (done to
+            // ensure that keys are not repeated unintentionally).
             if keys != last_pressed {
+                // If no keys are pressed there is no need to check for specific keys.
                 if !keys.is_empty() {
+                    // Check if the power keys is pressed.
                     if keys.contains(&Key::Power) {
+                        // If the calculator is currently "on" (meaning the backlight is on and all
+                        // keys are being scanned) turn it "off", otherwise turn it back "on".
                         if power_state {
+                            // Disable the backlight and clear the screen to avoid burn in.
                             display.set_backlight(0);
                             led.off();
                             display.clear(display::BG_COLOUR);
                             off = true;
                             power_state = false;
                         } else {
+                            // re-enable backlight
                             display.set_backlight(1);
                             led.green();
                             off = false;
@@ -170,17 +192,26 @@ const APP: () = {
                         }
                     }
 
+                    // Do not evaluate anything or draw anything to display if the calulator is
+                    // "off".
                     if !off {
+                        // If `Key::EXE` is pressed create a new line and do not do anything else.
                         if keys.contains(&Key::EXE) {
-                            //let result = rcas::parse_eval(&display.bottom);
+                            // Push the text in the input bar into the output display.
                             display.write_bottom_to_top();
-                            //if let Ok(num) = result {
+                            // Write the key count (with padding so that it appears left alligned)
+                            // to the output section of the display.
                             display.write_top(&format!("\n{: >52}", key_count));
-                            //}
+                            // Draw both sections of the display.
                             display.draw_all();
                         } else {
+                            // Set `shift` to `true` if `Key::Shift` is pressed.
                             let shift = keys.contains(&Key::Shift);
+                            // Evaluate all the keys pressed on the keypad.
                             for key in keys.iter() {
+                                // Get the pressed key's corresponding character, will be `\0` if
+                                // the key does not have a character, will probably change this in
+                                // the future to be strings, or completely redesign the console...
                                 let mut key_char = char::from(*key);
                                 if key_char != '\0' {
                                     if shift {
@@ -190,8 +221,12 @@ const APP: () = {
                                     if display.write_bottom(key_char.encode_utf8(&mut tmp), true) {
                                         key_count += 1;
                                     }
+                                // If `Key::Delete` is pressed, remove the last character from the
+                                // input display box
                                 } else if key == &Key::Delete {
                                     display.pop_bottom(true);
+                                // If `Key::Clear` is pressed (`Key::Delete` and `Key::Shift`)
+                                // remove all text from the input display box.
                                 } else if key == &Key::Clear {
                                     display.clear_bottom(true);
                                 }
