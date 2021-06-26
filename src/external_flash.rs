@@ -346,20 +346,20 @@ impl ExternalFlash {
     }
 
     pub fn sector_at_address(address: u32) -> i32 {
-        let mut i: i32 = address as i32 >> ADDRESS_BITS_64K; // 16 is the number of address bits for 64K sectors.
+        let mut i: i32 = address as i32 >> ADDRESS_BITS_64K;
         if i > 127 {
             return -1;
         }
         if i >= 1 {
-            return (N_4K_SECTORS + N_32K_SECTORS) as i32 - 1 + i; // 8 = 8 (number of 4K sectors) + 1 (number of 32K sectors) - 1
+            return (N_4K_SECTORS + N_32K_SECTORS) as i32 - 1 + i;
         }
-        i = address as i32 >> ADDRESS_BITS_32K; // 15 is the number of address bits for 32K sectors.
+        i = address as i32 >> ADDRESS_BITS_32K;
         if i >= 1 {
-            i = N_4K_SECTORS as i32 - 1 + i; // 7 = 8 (number of 4K sectors) - 1
-            assert!(i >= 0 && i <= N_32K_SECTORS as i32); // 1 is the number of 32K sectors
+            i = N_4K_SECTORS as i32 - 1 + i;
+            assert!(i >= 0 && i <= N_32K_SECTORS as i32);
             return i;
         }
-        i = address as i32 >> ADDRESS_BITS_4K; // 12 is the number of address bits for 4K sectors
+        i = address as i32 >> ADDRESS_BITS_4K;
         assert!(i <= N_4K_SECTORS as i32);
         i
     }

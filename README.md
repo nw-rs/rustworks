@@ -6,7 +6,8 @@ An OS (eventually) for the Numworks calculator (model n0110).
 
 ## Setup
 
-First install Rust by following [these instructions](https://www.rust-lang.org/tools/install) then open a terminal and execute the following commands:
+First install Rust by following [these instructions](https://www.rust-lang.org/tools/install) then
+open a terminal and execute the following commands:
 
 ```zsh
 rustup target add thumbv7em-none-eabihf
@@ -23,7 +24,8 @@ rustup component add llvm-tools-preview
 cargo install cargo-binutils
 cargo install cargo-make
 
-# If you have an STLink debugger and can connect it to the calculator install `probe-run` or `cargo-embed` for easy debugging and `cargo-flash` if you just want faster flashing speeds.
+# If you have an STLink debugger and can connect it to the calculator install `probe-run` or
+# `cargo-embed` for easy debugging and `cargo-flash` if you just want faster flashing speeds.
 cargo install probe-run
 cargo install cargo-embed
 cargo install cargo-flash
@@ -31,7 +33,8 @@ cargo install cargo-flash
 
 ## DFU Flash
 
-Complete setup, plug in your calculator and put it into DFU mode (press 6 and reset at the same time), then run the following command:
+Complete setup, plug in your calculator and put it into DFU mode (press 6 and reset at the same
+time), then run the following command:
 
 ```zsh
 cargo make dfu
@@ -39,7 +42,8 @@ cargo make dfu
 
 ## STLink
 
-If you have an STLink debugger (I am using the STLink V3SET) you can flash faster by using one of the following:
+If you have an STLink debugger (I am using the STLink V3SET) you can flash faster by using one of
+the following:
 
 ### Flash
 ```zsh
