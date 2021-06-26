@@ -13,6 +13,15 @@ const FLASH_ADDRESS_SIZE: u8 = 23;
 const ADDRESS_WIDTH: u8 = 3;
 const FLASH_SIZE: u32 = 8388608;
 
+const N_4K_SECTORS: u8 = 8;
+const N_32K_SECTORS: u8 = 1;
+const N_64K_SECTORS: u8 = 127;
+const N_SECTORS: u8 = N_4K_SECTORS + N_32K_SECTORS + N_64K_SECTORS;
+const ADDRESS_BITS_4K: u8 = 12;
+const ADDRESS_BITS_32K: u8 = 15;
+const ADDRESS_BITS_64K: u8 = 16;
+const PAGE_SIZE: usize = 256;
+
 struct QspiWidth;
 
 #[allow(dead_code)]
@@ -333,6 +342,70 @@ impl ExternalFlash {
         self.wait();
         self.send_command(Command::ChipErase);
         self.wait();
+        self.set_memory_mapped();
+    }
+
+    pub fn sector_at_address(address: u32) -> i32 {
+        let mut i: i32 = address as i32 >> ADDRESS_BITS_64K; // 16 is the number of address bits for 64K sectors.
+        if i > 127 {
+            return -1;
+        }
+        if i >= 1 {
+            return (N_4K_SECTORS + N_32K_SECTORS) as i32 - 1 + i; // 8 = 8 (number of 4K sectors) + 1 (number of 32K sectors) - 1
+        }
+        i = address as i32 >> ADDRESS_BITS_32K; // 15 is the number of address bits for 32K sectors.
+        if i >= 1 {
+            i = N_4K_SECTORS as i32 - 1 + i; // 7 = 8 (number of 4K sectors) - 1
+            assert!(i >= 0 && i <= N_32K_SECTORS as i32); // 1 is the number of 32K sectors
+            return i;
+        }
+        i = address as i32 >> ADDRESS_BITS_4K; // 12 is the number of address bits for 4K sectors
+        assert!(i <= N_4K_SECTORS as i32);
+        i
+    }
+
+    #[inline(never)]
+    pub fn erase_sector(&mut self, i: i32) {
+        assert!(i >= 0 && i < N_SECTORS as i32);
+        self.unset_memory_mapped();
+        self.unlock_flash();
+        self.send_command(Command::WriteEnable);
+        self.wait();
+        if i < N_4K_SECTORS as i32 {
+            self.send_write_command(
+                Command::Erase4KbyteBlock,
+                (i << ADDRESS_BITS_4K) as u32,
+                &mut [],
+            );
+        } else if i < (N_4K_SECTORS + N_32K_SECTORS) as i32 {
+            self.send_write_command(
+                Command::Erase32KbyteBlock,
+                ((i - N_4K_SECTORS as i32 + 1) << ADDRESS_BITS_32K) as u32,
+                &mut [],
+            );
+        } else {
+            self.send_write_command(
+                Command::Erase64KbyteBlock,
+                ((i - N_4K_SECTORS as i32 - N_32K_SECTORS as i32 + 1) << ADDRESS_BITS_64K) as u32,
+                &mut [],
+            );
+        }
+        self.wait();
+        self.set_memory_mapped();
+    }
+
+    #[inline(never)]
+    pub fn write_memory(&mut self, mut destination: u32, source: &mut [u32]) {
+        self.unset_memory_mapped();
+        let mut length_fits_page = PAGE_SIZE - (destination as usize & (PAGE_SIZE - 1));
+        for slice in source.chunks_mut(length_fits_page) {
+            self.send_command(Command::WriteEnable);
+            self.wait();
+            self.send_write_command(Command::QuadPageProgram, destination, slice);
+            destination += length_fits_page as u32;
+            length_fits_page = PAGE_SIZE;
+            self.wait();
+        }
         self.set_memory_mapped();
     }
 }
