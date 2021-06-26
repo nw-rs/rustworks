@@ -1,10 +1,12 @@
 # RustWorks
 
+Pour une version française de ce README allez a [README-FR.md](README-FR.md).
+
 An OS (eventually) for the Numworks calculator (model n0110).
 
 ## Setup
 
-First install Rust by following [these](https://www.rust-lang.org/tools/install) instuctions then:
+First install Rust by following [these instructions](https://www.rust-lang.org/tools/install) then open a terminal and execute the following commands:
 
 ```zsh
 rustup target add thumbv7em-none-eabihf
@@ -29,7 +31,7 @@ cargo install cargo-flash
 
 ## DFU Flash
 
-Complete setup, plug in your calculator and put it into dfu mode (press 6 and reset at the same time), then run the following:
+Complete setup, plug in your calculator and put it into DFU mode (press 6 and reset at the same time), then run the following command:
 
 ```zsh
 cargo make dfu
