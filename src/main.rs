@@ -8,6 +8,8 @@ extern crate alloc;
 use alloc::format;
 use alloc_cortex_m::CortexMHeap;
 use core::alloc::Layout;
+use core::slice;
+//use stm32f7xx_hal::flash::Flash;
 
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
@@ -46,7 +48,8 @@ const APP: () = {
     #[init]
     fn init(cx: init::Context) {
         // Initialize RTT printing (for debugging).
-        rtt_init_print!(BlockIfFull, 4096);
+        rtt_init_print!(NoBlockTrim, 4096);
+
         // Initialize the heap.
         let start = cortex_m_rt::heap_start() as usize;
         unsafe { ALLOCATOR.init(start, HEAP) }
@@ -78,6 +81,26 @@ const APP: () = {
         let mut external_flash =
             external_flash::ExternalFlash::new(&mut dp.RCC, dp.QUADSPI, qspi_pins);
 
+        /*/ Setup insternal flash for easy writing.
+        let mut flash = Flash::new(dp.FLASH);
+
+        // The flash needs to be unlocked before any erase or program operations.
+        flash.unlock();
+
+        // Erase flash sector 3, which is located at address 0x0800C000
+        flash.blocking_erase_sector(3).unwrap();
+
+        let flash_test_data_str = "This is a message to test if writing to flash works.";
+        let flash_test_data: &[u8] = flash_test_data_str.as_bytes();
+
+        // Program the the test data into the internal flash memory starting at offset 0xC00 from
+        // the beginning of the flash memory.
+        flash.blocking_program(0xA000, flash_test_data).unwrap();
+
+        // Lock the flash memory to prevent any accidental modification of the flash content.
+        flash.lock();
+        */
+
         // Configure the system clocks.
         let rcc = dp.RCC.constrain();
         let clocks = rcc
@@ -88,12 +111,19 @@ const APP: () = {
             .freeze();
         let mut delay = Delay::new(cp.SYST, clocks);
 
+        delay.delay_ms(100_u8);
+
         // Initialize the external flash chip.
         external_flash.init(&mut delay);
 
-        external_flash.mass_erase();
+        // Create a pointer to the location in flash that the test data was written to.
+        let read_slice = unsafe { slice::from_raw_parts(0x08000230 as *const u8, 16) };
 
-        delay.delay_ms(100_u8);
+        // Read the test data from flash as an ascii hex encoded string.
+        let read_string: alloc::string::String =
+            read_slice.iter().map(|b| format!("{:02x}", b)).collect();
+
+        rprintln!("{}", read_string);
 
         // Setup the keypad for reading.
         let keymatrix = KeyMatrix::new(
