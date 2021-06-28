@@ -118,14 +118,12 @@ const APP: () = {
         // Initialize the external flash chip.
         external_flash.init(&mut delay);
 
-        // Create a pointer to the location in flash that the test data was written to.
-        let _read_slice = unsafe { slice::from_raw_parts(0x90000000 as *const u8, 64) };
+        // Create a pointer to the first 78 bytes of external flash.
+        let read_slice = unsafe { slice::from_raw_parts(0x90000000 as *const u8, 78) };
 
-        /*
-        // Read the test data from flash as an ascii hex encoded string.
+        // Read the data at the pointer as an ascii hex encoded string.
         let read_string: alloc::string::String =
             read_slice.iter().map(|b| format!("{:02x}", b)).collect();
-        */
 
         // Setup the keypad for reading.
         let keymatrix = KeyMatrix::new(
@@ -183,6 +181,11 @@ const APP: () = {
             gpiod.pd6.into_push_pull_output(),
             &mut delay,
         );
+
+        // Print the first 78 bytes of external flash to the display in ASCII formatted
+        // hexadecimal, 78 bytes because that is what fits in the first 3 lines of the display.
+        display.write_top(&read_string);
+        display.draw_top(false);
 
         // Holds the keys pressed on the previous scan.
         let mut last_pressed: heapless::Vec<Key, 46> = heapless::Vec::new();

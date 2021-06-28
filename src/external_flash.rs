@@ -184,6 +184,9 @@ impl ExternalFlash {
         );
 
         self.qspi.ccr.write_with_zero(|w| {
+            unsafe {
+                w.fmode().bits(mode);
+            }
             if data.is_some() || mode == QspiMode::MEMORY_MAPPED {
                 unsafe {
                     w.dmode().bits(self.width);
