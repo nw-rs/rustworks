@@ -118,16 +118,14 @@ const APP: () = {
         // Initialize the external flash chip.
         external_flash.init(&mut delay);
 
-        rprintln!("create pointer");
         // Create a pointer to the location in flash that the test data was written to.
-        let read_slice = unsafe { slice::from_raw_parts(0x90000000 as *const u8, 64) };
+        let _read_slice = unsafe { slice::from_raw_parts(0x90000000 as *const u8, 64) };
 
-        rprintln!("turn bytes into hex string");
+        /*
         // Read the test data from flash as an ascii hex encoded string.
         let read_string: alloc::string::String =
             read_slice.iter().map(|b| format!("{:02x}", b)).collect();
-
-        rprintln!("{}", read_string);
+        */
 
         // Setup the keypad for reading.
         let keymatrix = KeyMatrix::new(
@@ -218,6 +216,8 @@ const APP: () = {
                             off = true;
                             power_state = false;
                         } else {
+                            // re-draw text boxes
+                            display.draw_all();
                             // re-enable backlight
                             display.set_backlight(1);
                             led.green();
@@ -287,88 +287,49 @@ fn panic(info: &PanicInfo) -> ! {
     cortex_m::peripheral::SCB::sys_reset();
 }
 
-struct MpuAccessPermission;
-
-impl MpuAccessPermission {
-    const NONE: u32 = 0b000 << 24;
-    const PRIVILEGED_RW: u32 = 0b001 << 24;
-    const PRIVILEGED_RW_UNPRIVILEGED_RO: u32 = 0b010 << 24;
-    const RW: u32 = 0b011 << 24;
-    const PRIVILEGED_RO: u32 = 0b101 << 24;
-    const RO: u32 = 0b110 << 24;
-}
-
-struct MpuRegionSize;
-
-impl MpuRegionSize {
-    const _32B: u32 = 4 << 1;
-    const _64B: u32 = 5 << 1;
-    const _128B: u32 = 6 << 1;
-    const _1KB: u32 = 9 << 1;
-    const _64KB: u32 = 15 << 1;
-    const _1MB: u32 = 10 << 1;
-    const _2MB: u32 = 20 << 1;
-    const _4MB: u32 = 21 << 1;
-    const _8MB: u32 = 22 << 1;
-    const _32MB: u32 = 24 << 1;
-    const _256MB: u32 = 27 << 1;
-    const _512MB: u32 = 28 << 1;
-    const _1GB: u32 = 29 << 1;
-    const _4GB: u32 = 31 << 1;
-}
-
 fn init_mpu(mpu: &mut cortex_m::peripheral::MPU) {
     unsafe {
-        const XN: u32 = 1 << 28;
         const FULL_ACCESS: u32 = 0b011 << 24;
-        const SHARED: u32 = 0b000001 << 18;
-        const CACHED: u32 = 0b000001 << 17;
-        const BUFFERED: u32 = 0b000001 << 16;
-        const NORMAL_SHARED: u32 = SHARED | CACHED;
+        const PRIVILEGED_RO: u32 = 0b101 << 24;
+        const SIZE_512MB: u32 = 28 << 1;
+        const SIZE_8MB: u32 = 22 << 1;
+        const DEVICE_SHARED: u32 = 0b000001 << 16;
+        const NORMAL_SHARED: u32 = 0b000110 << 16;
 
         // Flash
         mpu.rnr.write(0);
         mpu.rbar.write(0x0000_0000);
-        mpu.rasr.write(FULL_ACCESS | MpuRegionSize::_512MB | 1);
+        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | 1);
 
         // SRAM
         mpu.rnr.write(1);
         mpu.rbar.write(0x2000_0000);
-        mpu.rasr
-            .write(FULL_ACCESS | MpuRegionSize::_512MB | NORMAL_SHARED | 1);
+        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | NORMAL_SHARED | 1);
 
         // Peripherals
         mpu.rnr.write(2);
         mpu.rbar.write(0x4000_0000);
-        mpu.rasr
-            .write(FULL_ACCESS | MpuRegionSize::_512MB | BUFFERED | 1);
+        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | DEVICE_SHARED | 1);
 
         // FSMC
         mpu.rnr.write(3);
         mpu.rbar.write(0x6000_0000);
-        mpu.rasr
-            .write(FULL_ACCESS | MpuRegionSize::_512MB | BUFFERED | 1);
-
-        // QSPI
-        mpu.rnr.write(4);
-        mpu.rbar.write(0x9000_0000);
-        mpu.rasr
-            .write(MpuAccessPermission::NONE | MpuRegionSize::_256MB | 1);
-        mpu.rnr.write(5);
-        mpu.rbar.write(0x9000_0000);
-        mpu.rasr
-            .write(MpuAccessPermission::RW | MpuRegionSize::_8MB | CACHED | 1);
+        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | DEVICE_SHARED | 1);
 
         // FSMC
-        mpu.rnr.write(6);
+        mpu.rnr.write(4);
         mpu.rbar.write(0xA000_0000);
-        mpu.rasr
-            .write(FULL_ACCESS | MpuRegionSize::_512MB | BUFFERED | 1);
+        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | DEVICE_SHARED | 1);
 
         // Core peripherals
-        mpu.rnr.write(7);
+        mpu.rnr.write(5);
         mpu.rbar.write(0xE000_0000);
-        mpu.rasr.write(FULL_ACCESS | MpuRegionSize::_512MB | 1);
+        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | 1);
+
+        // QSPI
+        mpu.rnr.write(6);
+        mpu.rbar.write(0x9000_0000);
+        mpu.rasr.write(PRIVILEGED_RO | SIZE_8MB | DEVICE_SHARED | 1);
 
         // Enable MPU
         mpu.ctrl.write(1);
