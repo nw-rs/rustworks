@@ -112,11 +112,21 @@ const APP: () = {
             .sysclk(HCLK.hz())
             .freeze();
         let mut delay = Delay::new(cp.SYST, clocks);
-
-        delay.delay_ms(100_u8);
+        delay.delay_ms(100u32);
 
         // Initialize the external flash chip.
         external_flash.init(&mut delay);
+
+        /* -- Disabled external (QSPI) flash write test as it crashes the MCU --
+        // Erase/reset external (QSPI) flash so that it can be written.
+        external_flash.mass_erase();
+
+        // Write "abcd" to the first four bytes of external (QSPI) flash.
+        external_flash.write_memory(
+            0,
+            &mut [(b'a' as u32) << 24 | (b'b' as u32) << 16 | (b'c' as u32) << 8 | (b'd' as u32)],
+        );
+        */
 
         // Create a pointer to the first 78 bytes of external flash.
         let read_slice = unsafe { slice::from_raw_parts(0x90000000 as *const u8, 78) };
@@ -332,7 +342,11 @@ fn init_mpu(mpu: &mut cortex_m::peripheral::MPU) {
         // QSPI
         mpu.rnr.write(6);
         mpu.rbar.write(0x9000_0000);
-        mpu.rasr.write(PRIVILEGED_RO | SIZE_8MB | DEVICE_SHARED | 1);
+        mpu.rasr.write(27 << 1 | 1 << 28 | 1);
+
+        mpu.rnr.write(7);
+        mpu.rbar.write(0x9000_0000);
+        mpu.rasr.write(FULL_ACCESS | SIZE_8MB | DEVICE_SHARED | 1);
 
         // Enable MPU
         mpu.ctrl.write(1);

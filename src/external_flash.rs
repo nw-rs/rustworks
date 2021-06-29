@@ -293,27 +293,27 @@ impl ExternalFlash {
         )
     }
 
-    fn set_memory_mapped(&mut self) {
+    pub fn set_memory_mapped(&mut self) {
         self.send_command_full(
             QspiMode::MEMORY_MAPPED,
             Command::FastReadQuadIO,
             FLASH_SIZE,
             0xA0,
             1,
-            0,
+            4,
             None,
             0,
         )
     }
 
-    fn unset_memory_mapped(&mut self) {
+    pub fn unset_memory_mapped(&mut self) {
         self.send_command_full(
             QspiMode::INDIRECT_READ,
             Command::FastReadQuadIO,
             0,
-            !(0xA),
+            !(0xA0),
             1,
-            0,
+            4,
             Some(&mut [0u32]),
             1,
         );
