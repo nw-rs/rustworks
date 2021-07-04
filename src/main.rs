@@ -7,6 +7,7 @@ extern crate alloc;
 
 use alloc::format;
 use alloc_cortex_m::CortexMHeap;
+use stm32f7xx_hal::gpio::Speed;
 use core::alloc::Layout;
 use core::slice;
 
@@ -68,12 +69,12 @@ const APP: () = {
         // Take ownership of the QSPI pins (to prevent them from being messed with later) and set
         // them to the correct modes.
         let qspi_pins = (
-            gpiob.pb2.into_alternate_af9(),
-            gpiob.pb6.into_alternate_af10(),
-            gpioc.pc9.into_alternate_af9(),
-            gpiod.pd12.into_alternate_af9(),
-            gpiod.pd13.into_alternate_af9(),
-            gpioe.pe2.into_alternate_af9(),
+            gpiob.pb2.into_alternate_af9().set_speed(Speed::VeryHigh),
+            gpiob.pb6.into_alternate_af10().set_speed(Speed::VeryHigh),
+            gpioc.pc9.into_alternate_af9().set_speed(Speed::VeryHigh),
+            gpiod.pd12.into_alternate_af9().set_speed(Speed::VeryHigh),
+            gpiod.pd13.into_alternate_af9().set_speed(Speed::VeryHigh),
+            gpioe.pe2.into_alternate_af9().set_speed(Speed::VeryHigh),
         );
 
         // Setup external flash over QSPI.
