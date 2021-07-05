@@ -117,19 +117,19 @@ const APP: () = {
         // Initialize the external flash chip.
         external_flash.init(&mut delay);
 
-        // Create a pointer to the first 78 bytes of external flash.
-        let read_slice = unsafe { slice::from_raw_parts(0x90001000 as *const u8, 78) };
+        // Create a pointer to the first 64 bytes at the address 0x90001000 of external flash.
+        let read_slice = unsafe { slice::from_raw_parts(0x90001000 as *const u32, 16) };
 
         // Read the data at the pointer as an ascii hex encoded string.
         let read_string: alloc::string::String =
-            read_slice.iter().map(|b| format!("{:02x}", b)).collect();
+            read_slice.iter().map(|b| format!("0x{:08x} ", b)).collect();
 
         // Erase/reset external (QSPI) flash so that it can be written.
         external_flash.mass_erase();
 
         let abcd = (b'a' as u32) << 24 | (b'b' as u32) << 16 | (b'c' as u32) << 8 | (b'd' as u32);
-        // Write "abcd" to the first four bytes of external (QSPI) flash.
-        external_flash.write_memory(0x1000, &mut [abcd; 256]);
+        // Write "abcd" to external (QSPI) flash.
+        external_flash.write_memory(0x1000, &mut [abcd; 64]);
 
         // Setup the keypad for reading.
         let keymatrix = KeyMatrix::new(
@@ -188,8 +188,9 @@ const APP: () = {
             &mut delay,
         );
 
-        // Print the first 78 bytes of external flash to the display in ASCII formatted
-        // hexadecimal, 78 bytes because that is what fits in the first 3 lines of the display.
+        // Print the first 64 bytes at address 0x90001000 of external flash to the display in ASCII
+        // formatted hexadecimal, displayed in groups of 4 (making them 32 bit integers);
+        display.write_top("64 bytes of 0x90001000:\n");
         display.write_top(&read_string);
         display.draw_top(false);
 
