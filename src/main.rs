@@ -38,7 +38,6 @@ use keypad::{Key, KeyMatrix, KeyPad};
 use led::Led;
 
 use crate::display::Display;
-use crate::external_flash::Command;
 
 const HCLK: u32 = 216_000_000;
 
@@ -119,7 +118,7 @@ const APP: () = {
         external_flash.init(&mut delay);
 
         // Create a pointer to the first 78 bytes of external flash.
-        let read_slice = unsafe { slice::from_raw_parts(0x90000000 as *const u8, 78) };
+        let read_slice = unsafe { slice::from_raw_parts(0x90001000 as *const u8, 78) };
 
         // Read the data at the pointer as an ascii hex encoded string.
         let read_string: alloc::string::String =
@@ -130,7 +129,7 @@ const APP: () = {
 
         let abcd = (b'a' as u32) << 24 | (b'b' as u32) << 16 | (b'c' as u32) << 8 | (b'd' as u32);
         // Write "abcd" to the first four bytes of external (QSPI) flash.
-        external_flash.write_memory(0, &mut [abcd; 256]);
+        external_flash.write_memory(0x1000, &mut [abcd; 256]);
 
         // Setup the keypad for reading.
         let keymatrix = KeyMatrix::new(

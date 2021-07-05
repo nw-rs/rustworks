@@ -8,8 +8,6 @@ use stm32f7xx_hal::gpio::{Alternate, AF10, AF9};
 use stm32f7xx_hal::prelude::*;
 use stm32f7xx_hal::{pac::QUADSPI, pac::RCC};
 
-use rtt_target::rprintln;
-
 // 2^23 = 8MB
 const FLASH_ADDRESS_SIZE: u8 = 23;
 const ADDRESS_WIDTH: u8 = 3;
