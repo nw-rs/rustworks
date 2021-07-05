@@ -8,6 +8,8 @@ use stm32f7xx_hal::gpio::{Alternate, AF10, AF9};
 use stm32f7xx_hal::prelude::*;
 use stm32f7xx_hal::{pac::QUADSPI, pac::RCC};
 
+use rtt_target::rprintln;
+
 // 2^23 = 8MB
 const FLASH_ADDRESS_SIZE: u8 = 23;
 const ADDRESS_WIDTH: u8 = 3;
@@ -56,7 +58,7 @@ impl QspiSize {
 
 /// Commands (instructions) that can be sent to the flash chip.
 #[repr(u8)]
-enum Command {
+pub enum Command {
     ReadStatusRegister1 = 0x05,
     ReadStatusRegister2 = 0x35,
     WriteStatusRegister = 0x01,
@@ -142,11 +144,11 @@ impl ExternalFlash {
         self.width = QspiWidth::QUAD;
         // Configure number of dummy cycles for QPI read instructions.
         self.send_write_command(Command::SetReadParameters, FLASH_SIZE, &mut [0b0010000]);
-        self.set_memory_mapped();
         self.initialised = true;
+        self.set_memory_mapped();
     }
 
-    fn send_command_full(
+    pub fn send_command_full(
         &mut self,
         mode: u8,
         command: Command,
@@ -159,29 +161,26 @@ impl ExternalFlash {
     ) {
         assert!(mode < 4); // There are only 4 modes.
 
+        let fmode = self.qspi.ccr.read().fmode().bits();
+
         if mode == QspiMode::MEMORY_MAPPED {
-            let previous_mode = self.qspi.ccr.read().fmode().bits();
-            if previous_mode == QspiMode::INDIRECT_WRITE || previous_mode == QspiMode::INDIRECT_READ
-            {
+            if fmode == QspiMode::INDIRECT_WRITE || fmode == QspiMode::INDIRECT_READ {
                 unsafe { self.qspi.ar.write(|w| w.bits(0)) }
-                if previous_mode == QspiMode::INDIRECT_READ {
+                if fmode == QspiMode::INDIRECT_READ {
                     self.qspi.cr.write(|w| w.abort().set_bit());
                     while self.qspi.cr.read().abort().bit() {
                         asm::nop();
                     }
                 }
             }
-        } else if self.qspi.ccr.read().fmode() == QspiMode::MEMORY_MAPPED {
+        } else if fmode == QspiMode::MEMORY_MAPPED {
             self.qspi.cr.write(|w| w.abort().set_bit());
             while self.qspi.cr.read().abort().bit() {
                 asm::nop();
             }
         }
 
-        assert!(
-            self.qspi.ccr.read().fmode() != QspiMode::MEMORY_MAPPED
-                || self.qspi.sr.read().busy().bit()
-        );
+        assert!(fmode != QspiMode::MEMORY_MAPPED || self.qspi.sr.read().busy().bit_is_clear());
 
         self.qspi.ccr.write_with_zero(|w| {
             unsafe {
@@ -252,7 +251,7 @@ impl ExternalFlash {
         }
     }
 
-    fn send_command(&mut self, command: Command) {
+    pub fn send_command(&mut self, command: Command) {
         self.send_command_full(
             QspiMode::INDIRECT_WRITE,
             command,
@@ -265,7 +264,7 @@ impl ExternalFlash {
         )
     }
 
-    fn send_write_command(&mut self, command: Command, address: u32, data: &mut [u32]) {
+    pub fn send_write_command(&mut self, command: Command, address: u32, data: &mut [u32]) {
         let data_length = data.len() as u32;
         self.send_command_full(
             QspiMode::INDIRECT_WRITE,
@@ -279,7 +278,7 @@ impl ExternalFlash {
         )
     }
 
-    fn send_read_command(&mut self, command: Command, address: u32, data: &mut [u32]) {
+    pub fn send_read_command(&mut self, command: Command, address: u32, data: &mut [u32]) {
         let data_length = data.len() as u32;
         self.send_command_full(
             QspiMode::INDIRECT_READ,
@@ -303,7 +302,7 @@ impl ExternalFlash {
             4,
             None,
             0,
-        )
+        );
     }
 
     pub fn unset_memory_mapped(&mut self) {
@@ -319,7 +318,7 @@ impl ExternalFlash {
         );
     }
 
-    fn wait(&mut self) {
+    pub fn wait(&mut self) {
         let mut status_one = [0u32];
         loop {
             self.send_read_command(Command::ReadStatusRegister1, FLASH_SIZE, &mut status_one);
@@ -329,7 +328,7 @@ impl ExternalFlash {
         }
     }
 
-    fn unlock_flash(&mut self) {
+    pub fn unlock_flash(&mut self) {
         self.send_command(Command::WriteEnable);
         self.wait();
         let mut status_two = [0u32];

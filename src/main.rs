@@ -7,9 +7,9 @@ extern crate alloc;
 
 use alloc::format;
 use alloc_cortex_m::CortexMHeap;
-use stm32f7xx_hal::gpio::Speed;
 use core::alloc::Layout;
 use core::slice;
+use stm32f7xx_hal::gpio::Speed;
 
 #[global_allocator]
 static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
@@ -38,6 +38,7 @@ use keypad::{Key, KeyMatrix, KeyPad};
 use led::Led;
 
 use crate::display::Display;
+use crate::external_flash::Command;
 
 const HCLK: u32 = 216_000_000;
 
@@ -113,21 +114,9 @@ const APP: () = {
             .sysclk(HCLK.hz())
             .freeze();
         let mut delay = Delay::new(cp.SYST, clocks);
-        delay.delay_ms(100u32);
 
         // Initialize the external flash chip.
         external_flash.init(&mut delay);
-
-        /* -- Disabled external (QSPI) flash write test as it crashes the MCU --
-        // Erase/reset external (QSPI) flash so that it can be written.
-        external_flash.mass_erase();
-
-        // Write "abcd" to the first four bytes of external (QSPI) flash.
-        external_flash.write_memory(
-            0,
-            &mut [(b'a' as u32) << 24 | (b'b' as u32) << 16 | (b'c' as u32) << 8 | (b'd' as u32)],
-        );
-        */
 
         // Create a pointer to the first 78 bytes of external flash.
         let read_slice = unsafe { slice::from_raw_parts(0x90000000 as *const u8, 78) };
@@ -135,6 +124,13 @@ const APP: () = {
         // Read the data at the pointer as an ascii hex encoded string.
         let read_string: alloc::string::String =
             read_slice.iter().map(|b| format!("{:02x}", b)).collect();
+
+        // Erase/reset external (QSPI) flash so that it can be written.
+        external_flash.mass_erase();
+
+        let abcd = (b'a' as u32) << 24 | (b'b' as u32) << 16 | (b'c' as u32) << 8 | (b'd' as u32);
+        // Write "abcd" to the first four bytes of external (QSPI) flash.
+        external_flash.write_memory(0, &mut [abcd; 256]);
 
         // Setup the keypad for reading.
         let keymatrix = KeyMatrix::new(
