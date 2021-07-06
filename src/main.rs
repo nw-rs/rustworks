@@ -78,8 +78,7 @@ const APP: () = {
         );
 
         // Setup external flash over QSPI.
-        let mut external_flash =
-            external_flash::ExternalFlash::new(&mut dp.RCC, dp.QUADSPI, qspi_pins);
+        let external_flash = external_flash::ExternalFlash::new(&mut dp.RCC, dp.QUADSPI, qspi_pins);
 
         /* -- Disabled internal flash test write as it crashes probe-rs --
         use stm32f7xx_hal::flash::Flash;
@@ -115,21 +114,55 @@ const APP: () = {
         let mut delay = Delay::new(cp.SYST, clocks);
 
         // Initialize the external flash chip.
-        external_flash.init(&mut delay);
+        let mut external_flash = external_flash.init(&mut delay);
 
-        // Create a pointer to the first 64 bytes at the address 0x90001000 of external flash.
-        let read_slice = unsafe { slice::from_raw_parts(0x90001000 as *const u32, 16) };
+        let (manufacturer, device) = external_flash.read_ids();
+        assert_eq!(manufacturer, 0x1F);
+        assert_eq!(device, 0x16);
 
         // Read the data at the pointer as an ascii hex encoded string.
-        let read_string: alloc::string::String =
-            read_slice.iter().map(|b| format!("0x{:08x} ", b)).collect();
+        let mut read_string: alloc::string::String = format!(
+            "Manufacturer: {:#04x}\nDevice: {:#04x}",
+            manufacturer, device
+        );
 
-        // Erase/reset external (QSPI) flash so that it can be written.
-        external_flash.mass_erase();
+        read_string.push_str("\n\nBefore erase:\n");
+        for i in 0..8 {
+            let byte = external_flash.read_byte(i);
+            read_string.push_str(&format!("{:02x} ", byte));
+        }
 
-        let abcd = (b'a' as u32) << 24 | (b'b' as u32) << 16 | (b'c' as u32) << 8 | (b'd' as u32);
-        // Write "abcd" to external (QSPI) flash.
-        external_flash.write_memory(0x1000, &mut [abcd; 64]);
+        // This also works but is very slow.
+        // From the datasheet: Chip Erase Time: 30s typ., 150s max
+        // external_flash.write_enable();
+        // external_flash.chip_erase();
+
+        external_flash.write_enable();
+        external_flash.block_erase_4k(0);
+
+        read_string.push_str("\n\nAfter erase:\n");
+        for i in 0..8 {
+            let byte = external_flash.read_byte(i);
+            read_string.push_str(&format!("{:02x} ", byte));
+        }
+
+        external_flash.write_enable();
+        external_flash.program_page(0, &[0x12, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF]);
+
+        read_string.push_str("\n\nAfter write:\n");
+        for i in 0..8 {
+            let byte = external_flash.read_byte(i);
+            read_string.push_str(&format!("{:02x} ", byte));
+        }
+
+        let _external_flash = external_flash.into_memory_mapped();
+
+        // Create a pointer to the first 8 bytes at the address 0x90000000 of external flash.
+        let read_slice = unsafe { slice::from_raw_parts(0x90000000 as *const u8, 8) };
+        read_string.push_str("\n\nMemory mapped:\n");
+        for byte in read_slice.iter() {
+            read_string.push_str(&format!("{:02x} ", *byte));
+        }
 
         // Setup the keypad for reading.
         let keymatrix = KeyMatrix::new(
@@ -190,7 +223,6 @@ const APP: () = {
 
         // Print the first 64 bytes at address 0x90001000 of external flash to the display in ASCII
         // formatted hexadecimal, displayed in groups of 4 (making them 32 bit integers);
-        display.write_top("64 bytes of 0x90001000:\n");
         display.write_top(&read_string);
         display.draw_top(false);
 
