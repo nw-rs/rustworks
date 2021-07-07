@@ -3,13 +3,10 @@
 use core::fmt::Arguments;
 use core::fmt::Write;
 
-use embedded_graphics::style::PrimitiveStyleBuilder;
 use heapless::String;
 use st7789::Orientation;
 use st7789::ST7789;
 
-use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::*;
 use stm32f7xx_hal::delay::Delay;
 use stm32f7xx_hal::fmc_lcd::{AccessMode, ChipSelect1, FmcLcd, Lcd, SubBank1, Timing};
 use stm32f7xx_hal::gpio::gpiob::PB11;
@@ -19,11 +16,15 @@ use stm32f7xx_hal::gpio::gpioe::{PE0, PE1, PE10, PE11, PE12, PE13, PE14, PE15, P
 use stm32f7xx_hal::gpio::{Alternate, Floating, Input, Output, PushPull, AF12};
 use stm32f7xx_hal::pac::FMC;
 use stm32f7xx_hal::prelude::*;
-
-use embedded_graphics::fonts::Font6x8;
-use embedded_graphics::pixelcolor::Rgb565;
-use embedded_text::prelude::*;
 use stm32f7xx_hal::rcc::Clocks;
+
+use embedded_graphics::{
+    mono_font::{ascii::FONT_6X10, MonoTextStyle},
+    pixelcolor::Rgb565,
+    prelude::*,
+    primitives::{PrimitiveStyleBuilder, Rectangle},
+};
+use embedded_text::{alignment::VerticalAlignment, TextBox};
 
 pub const DISPLAY_WIDTH: u16 = 320;
 pub const DISPLAY_HEIGHT: u16 = 240;
@@ -71,7 +72,7 @@ pub type LcdST7789 = ST7789<Lcd<SubBank1>, LcdResetPin>;
 
 pub type Color = Rgb565;
 
-pub type DrawError = <LcdST7789 as DrawTarget<Color>>::Error;
+pub type DrawError = <LcdST7789 as DrawTarget>::Error;
 
 pub struct Display {
     pub display: LcdST7789,
@@ -243,43 +244,50 @@ impl Display {
     }
 
     pub fn draw_bottom(&mut self, clear: bool) {
-        let textbox_style = TextBoxStyleBuilder::new(Font6x8)
-            .text_color(Rgb565::GREEN)
-            .background_color(Rgb565::BLACK)
-            .vertical_alignment(Scrolling)
-            .build();
+        let character_style = MonoTextStyle::new(&FONT_6X10, Rgb565::GREEN);
+
         let bottom_bounds = Rectangle::new(
             Point::new(3, DISPLAY_HEIGHT as i32 - 16),
-            Point::new(DISPLAY_WIDTH as i32 - 3, DISPLAY_HEIGHT as i32),
+            self.display.size() - Size::new(6, 0),
         );
-        let bottom_text_box = TextBox::new(&self.bottom, bottom_bounds).into_styled(textbox_style);
+
         if clear {
             bottom_bounds
                 .into_styled(PrimitiveStyleBuilder::new().fill_color(BG_COLOUR).build())
                 .draw(&mut self.display)
                 .unwrap();
         }
-        bottom_text_box.draw(&mut self.display).unwrap();
+
+        TextBox::with_vertical_alignment(
+            &self.bottom,
+            bottom_bounds,
+            character_style,
+            VerticalAlignment::Scrolling,
+        )
+        .draw(&mut self.display)
+        .unwrap();
     }
 
     pub fn draw_top(&mut self, clear: bool) {
-        let textbox_style = TextBoxStyleBuilder::new(Font6x8)
-            .text_color(Rgb565::GREEN)
-            .background_color(Rgb565::BLACK)
-            .vertical_alignment(Scrolling)
-            .build();
-        let top_bounds = Rectangle::new(
-            Point::new(3, 5),
-            Point::new(DISPLAY_WIDTH as i32 - 3, DISPLAY_HEIGHT as i32 - 20),
-        );
-        let top_text_box = TextBox::new(&self.top, top_bounds).into_styled(textbox_style);
+        let character_style = MonoTextStyle::new(&FONT_6X10, Rgb565::GREEN);
+
+        let top_bounds = Rectangle::new(Point::new(3, 5), self.display.size() - Size::new(6, 15));
+
         if clear {
             top_bounds
                 .into_styled(PrimitiveStyleBuilder::new().fill_color(BG_COLOUR).build())
                 .draw(&mut self.display)
                 .unwrap();
         }
-        top_text_box.draw(&mut self.display).unwrap();
+
+        TextBox::with_vertical_alignment(
+            &self.top,
+            top_bounds,
+            character_style,
+            VerticalAlignment::Scrolling,
+        )
+        .draw(&mut self.display)
+        .unwrap();
     }
 
     pub fn draw_all(&mut self) {
