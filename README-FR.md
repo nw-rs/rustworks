@@ -6,7 +6,7 @@ Une OS (éventuellement) pour la calculatrice NumWorks (modèle n0110).
 
 ## Setup pour développement
 
-D'abord installez Rust en suivant [ces instructions](https://www.rust-lang.org/tools/install),
+D'abord installez Rust avec rustup en suivant [ces instructions](https://www.rust-lang.org/tools/install),
 puis, ouvrez une terminal et exécutez les commandes suivantes:
 
 ```zsh

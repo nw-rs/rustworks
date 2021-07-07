@@ -66,28 +66,25 @@ const APP: () = {
         // Setup external flash over QSPI.
         let external_flash = ExternalFlash::new(&mut dp.RCC, dp.QUADSPI, qspi_pins);
 
-        /* -- Disabled internal flash test write as it crashes probe-rs --
+        // -- Disabled internal flash test write as it crashes probe-rs --
         use stm32f7xx_hal::flash::Flash;
 
         // Setup insternal flash for easy writing.
         let mut flash = Flash::new(dp.FLASH);
 
-        // The flash needs to be unlocked before any erase or program operations.
-        flash.unlock();
-
-        // Erase flash sector 3, which is located at address 0x0800C000
-        flash.blocking_erase_sector(3).unwrap();
-
         let flash_test_data_str = "This is a message to test if writing to flash works.";
         let flash_test_data: &[u8] = flash_test_data_str.as_bytes();
 
+        // The flash needs to be unlocked before any erase or program operations.
+        flash.unlock();
+
         // Program the the test data into the internal flash memory starting at offset 0xC00 from
         // the beginning of the flash memory.
-        flash.blocking_program(0xA000, flash_test_data).unwrap();
+        flash.blocking_program(0x10000, flash_test_data).unwrap();
 
         // Lock the flash memory to prevent any accidental modification of the flash content.
         flash.lock();
-        */
+        //
 
         // Configure the system clocks.
         let rcc = dp.RCC.constrain();

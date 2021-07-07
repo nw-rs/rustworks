@@ -6,7 +6,7 @@ An OS (eventually) for the Numworks calculator (model n0110).
 
 ## Setup
 
-First install Rust by following [these instructions](https://www.rust-lang.org/tools/install) then
+First install Rust using rustup by following [these instructions](https://www.rust-lang.org/tools/install) then
 open a terminal and execute the following commands:
 
 ```zsh
