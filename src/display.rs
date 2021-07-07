@@ -23,6 +23,7 @@ use stm32f7xx_hal::prelude::*;
 use embedded_graphics::fonts::Font6x8;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_text::prelude::*;
+use stm32f7xx_hal::rcc::Clocks;
 
 pub const DISPLAY_WIDTH: u16 = 320;
 pub const DISPLAY_HEIGHT: u16 = 240;
@@ -94,9 +95,9 @@ impl Display {
         _tearing_effect_pin: LcdTearingEffectPin,
         mut extd_cmd_pin: LcdExtdCmdPin,
         delay: &mut Delay,
-        hclk: u32,
+        clocks: &Clocks,
     ) -> Self {
-        let ns_to_cycles = |ns: u32| (hclk / 1_000_000) * ns;
+        let ns_to_cycles = |ns: u32| (clocks.hclk().0 / 1_000_000) * ns;
 
         let tedge: u32 = 15;
         let twc: u32 = 66;
@@ -132,7 +133,7 @@ impl Display {
 
         extd_cmd_pin.set_high().unwrap();
 
-        let (fmc, lcd) = FmcLcd::new(fmc, hclk.hz(), lcd_pins, &read_timing, &write_timing);
+        let (fmc, lcd) = FmcLcd::new(fmc, clocks, lcd_pins, &read_timing, &write_timing);
 
         reset_pin.set_low().unwrap();
         delay.delay_ms(5u16);

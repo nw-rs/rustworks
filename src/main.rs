@@ -66,7 +66,7 @@ const APP: () = {
         // Setup external flash over QSPI.
         let external_flash = ExternalFlash::new(&mut dp.RCC, dp.QUADSPI, qspi_pins);
 
-        // -- Disabled internal flash test write as it crashes probe-rs --
+        /* -- Disabled internal flash test write as it crashes probe-rs --
         use stm32f7xx_hal::flash::Flash;
 
         // Setup insternal flash for easy writing.
@@ -84,7 +84,7 @@ const APP: () = {
 
         // Lock the flash memory to prevent any accidental modification of the flash content.
         flash.lock();
-        //
+        */
 
         // Configure the system clocks.
         let rcc = dp.RCC.constrain();
@@ -132,7 +132,7 @@ const APP: () = {
             gpiob.pb11.into_floating_input(),
             gpiod.pd6.into_push_pull_output(),
             &mut delay,
-            HCLK,
+            &clocks,
         );
 
         // Initialize the external flash chip.
