@@ -12,7 +12,6 @@ homepage = "https://github.com/willemml/rustworks"
 cortex-m = "0.6"
 cortex-m-rt = "0.6"
 rtt-target = { version = "0.3", features = ["cortex-m"] }
-alloc-cortex-m = "0.4.1"
 embedded-hal = "0.2"
 cortex-m-rtic = "0.5"
 embedded-graphics = "0.6"
@@ -23,7 +22,6 @@ display-interface-parallel-gpio = "0.6"
 stm32f7xx-hal = { git = "https://github.com/willemml/stm32f7xx-hal", branch = "fsmc_lcd", features = ["stm32f730", "rt", "fmc_lcd"] }
 num-traits = { version = "0.2", default-features = false }
 num-derive = "0.3"
-rcas = { git = "https://github.com/willemml/rcas" }
 hex = { version = "0.4", default-features = false }
 
 [[bin]]

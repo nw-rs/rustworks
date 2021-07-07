@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use core::marker::PhantomData;
 
 use cortex_m::asm;

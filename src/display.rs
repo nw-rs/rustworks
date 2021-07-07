@@ -1,11 +1,10 @@
-use crate::HCLK;
+#![allow(dead_code)]
 
+use core::fmt::Arguments;
 use core::fmt::Write;
 
-use alloc::format;
-use alloc::string::String;
-
 use embedded_graphics::style::PrimitiveStyleBuilder;
+use heapless::String;
 use st7789::Orientation;
 use st7789::ST7789;
 
@@ -31,7 +30,7 @@ pub const DISPLAY_HEIGHT: u16 = 240;
 pub const BG_COLOUR: Rgb565 = Rgb565::BLACK;
 pub const TEXT_COLOUR: Rgb565 = Rgb565::GREEN;
 
-const TOP_STRING_SIZE: usize = 2048;
+const TOP_STRING_SIZE: usize = 1479;
 const TOP_LINES: usize = 38;
 const BOTTOM_STRING_SIZE: usize = 104;
 const BOTTOM_LINES: usize = 3;
@@ -75,8 +74,8 @@ pub type DrawError = <LcdST7789 as DrawTarget<Color>>::Error;
 
 pub struct Display {
     pub display: LcdST7789,
-    pub top: String,
-    pub bottom: String,
+    pub top: String<TOP_STRING_SIZE>,
+    pub bottom: String<BOTTOM_STRING_SIZE>,
     power_pin: LcdPowerPin,
     extd_cmd_pin: LcdExtdCmdPin,
     backlight_pin: LcdBacklightPin,
@@ -95,8 +94,9 @@ impl Display {
         _tearing_effect_pin: LcdTearingEffectPin,
         mut extd_cmd_pin: LcdExtdCmdPin,
         delay: &mut Delay,
+        hclk: u32,
     ) -> Self {
-        let ns_to_cycles = |ns: u32| (HCLK / 1_000_000) * ns;
+        let ns_to_cycles = |ns: u32| (hclk / 1_000_000) * ns;
 
         let tedge: u32 = 15;
         let twc: u32 = 66;
@@ -132,7 +132,7 @@ impl Display {
 
         extd_cmd_pin.set_high().unwrap();
 
-        let (fmc, lcd) = FmcLcd::new(fmc, HCLK.hz(), lcd_pins, &read_timing, &write_timing);
+        let (fmc, lcd) = FmcLcd::new(fmc, hclk.hz(), lcd_pins, &read_timing, &write_timing);
 
         reset_pin.set_low().unwrap();
         delay.delay_ms(5u16);
@@ -155,8 +155,8 @@ impl Display {
 
         Self {
             display,
-            top: String::with_capacity(TOP_STRING_SIZE),
-            bottom: String::with_capacity(128),
+            top: String::new(),
+            bottom: String::new(),
             power_pin,
             backlight_pin,
             extd_cmd_pin,
@@ -179,43 +179,45 @@ impl Display {
         self.backlight_state = target;
     }
 
-    pub fn write_bottom_to_top(&mut self) {
-        self.write_top(&format!("\n{}", self.bottom));
-        self.bottom.clear();
+    pub fn write_bottom_to_top(mut self) -> Self {
+        let bottom_content = self.bottom;
+        self.bottom = String::new();
+        self.write_top_fmt(format_args!("\n{}", &bottom_content));
+        self
     }
 
     pub fn write_top(&mut self, text: &str) {
-        if self.top.len() + text.len() > TOP_STRING_SIZE {
-            self.top = self
-                .top
-                .chars()
-                .skip(text.len() + self.top.len() - TOP_STRING_SIZE)
-                .collect();
+        if text.len() > TOP_STRING_SIZE {
+            self.top.clear();
+            self.top
+                .push_str(unsafe {
+                    text.get_unchecked((text.len() - TOP_STRING_SIZE)..(text.len() - 1))
+                })
+                .unwrap();
+        } else {
+            if self.top.len() + text.len() > TOP_STRING_SIZE {
+                let old_top = self.top.clone();
+                self.top.clear();
+                self.top
+                    .push_str(unsafe {
+                        let t = &old_top.as_str().get_unchecked(
+                            (old_top.len() + text.len() - TOP_STRING_SIZE)..(old_top.len() - 1),
+                        );
+                        t
+                    })
+                    .unwrap();
+            }
+            self.top.push_str(text).unwrap();
         }
-        self.top.write_str(text).unwrap();
-        let lines = self.top.lines().count();
-        if lines > TOP_LINES {
-            self.top = self
-                .top
-                .lines()
-                .skip(lines - TOP_LINES)
-                .collect::<alloc::vec::Vec<&str>>()
-                .join("\n");
-        }
+    }
+
+    pub fn write_top_fmt(&mut self, args: Arguments<'_>) {
+        self.write_fmt(args).unwrap()
     }
 
     pub fn write_bottom(&mut self, text: &str, redraw: bool) -> bool {
         if !(self.bottom.len() + text.len() > BOTTOM_STRING_SIZE) {
             self.bottom.write_str(text).unwrap();
-            let lines = self.bottom.lines().count();
-            if lines > BOTTOM_LINES {
-                self.bottom = self
-                    .bottom
-                    .lines()
-                    .skip(lines - BOTTOM_LINES)
-                    .collect::<alloc::vec::Vec<&str>>()
-                    .join("\n");
-            }
             if redraw {
                 self.draw_bottom(true);
             }
@@ -283,5 +285,12 @@ impl Display {
         self.clear(BG_COLOUR);
         self.draw_bottom(false);
         self.draw_top(false);
+    }
+}
+
+impl Write for Display {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write_top(s);
+        Ok(())
     }
 }

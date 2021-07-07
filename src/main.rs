@@ -1,18 +1,10 @@
 #![no_std]
 #![no_main]
-#![feature(alloc_error_handler)]
 #![allow(dead_code)]
 
-extern crate alloc;
-
-use alloc::format;
-use alloc_cortex_m::CortexMHeap;
-use core::alloc::Layout;
+use core::fmt::Write;
 use core::slice;
 use stm32f7xx_hal::gpio::Speed;
-
-#[global_allocator]
-static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
 
 use rtt_target::{rprintln, rtt_init_print};
 
@@ -29,19 +21,17 @@ use stm32f7xx_hal::{
     prelude::*,
 };
 
-mod display;
-mod external_flash;
-mod keypad;
-mod led;
+pub mod display;
+pub mod external_flash;
+pub mod keypad;
+pub mod led;
 
+use display::Display;
+use external_flash::ExternalFlash;
 use keypad::{Key, KeyMatrix, KeyPad};
 use led::Led;
 
-use crate::display::Display;
-
 const HCLK: u32 = 216_000_000;
-
-const HEAP: usize = 32768;
 
 #[app(device = stm32f7xx_hal::pac, peripherals = true)]
 const APP: () = {
@@ -49,10 +39,6 @@ const APP: () = {
     fn init(cx: init::Context) {
         // Initialize RTT printing (for debugging).
         rtt_init_print!(NoBlockTrim, 4096);
-
-        // Initialize the heap.
-        let start = cortex_m_rt::heap_start() as usize;
-        unsafe { ALLOCATOR.init(start, HEAP) }
 
         let mut cp: cortex_m::Peripherals = cx.core;
 
@@ -78,7 +64,7 @@ const APP: () = {
         );
 
         // Setup external flash over QSPI.
-        let external_flash = external_flash::ExternalFlash::new(&mut dp.RCC, dp.QUADSPI, qspi_pins);
+        let external_flash = ExternalFlash::new(&mut dp.RCC, dp.QUADSPI, qspi_pins);
 
         /* -- Disabled internal flash test write as it crashes probe-rs --
         use stm32f7xx_hal::flash::Flash;
@@ -112,76 +98,6 @@ const APP: () = {
             .sysclk(HCLK.hz())
             .freeze();
         let mut delay = Delay::new(cp.SYST, clocks);
-
-        // Initialize the external flash chip.
-        let mut external_flash = external_flash.init(&mut delay);
-
-        let (manufacturer, device) = external_flash.read_ids();
-        assert_eq!(manufacturer, 0x1F);
-        assert_eq!(device, 0x16);
-
-        // Read the data at the pointer as an ascii hex encoded string.
-        let mut read_string: alloc::string::String = format!(
-            "Manufacturer: {:#04x}\nDevice: {:#04x}",
-            manufacturer, device
-        );
-
-        read_string.push_str("\n\nBefore erase:\n");
-        for i in 0..8 {
-            let byte = external_flash.read_byte(i);
-            read_string.push_str(&format!("{:02x} ", byte));
-        }
-
-        // This also works but is very slow.
-        // From the datasheet: Chip Erase Time: 30s typ., 150s max
-        // external_flash.write_enable();
-        // external_flash.chip_erase();
-
-        external_flash.write_enable();
-        external_flash.block_erase_4k(0);
-
-        read_string.push_str("\n\nAfter erase:\n");
-        for i in 0..8 {
-            let byte = external_flash.read_byte(i);
-            read_string.push_str(&format!("{:02x} ", byte));
-        }
-
-        external_flash.write_enable();
-        external_flash.program_page(0, &[0x12, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF]);
-
-        read_string.push_str("\n\nAfter write:\n");
-        for i in 0..8 {
-            let byte = external_flash.read_byte(i);
-            read_string.push_str(&format!("{:02x} ", byte));
-        }
-
-        let _external_flash = external_flash.into_memory_mapped();
-
-        // Create a pointer to the first 8 bytes at the address 0x90000000 of external flash.
-        let read_slice = unsafe { slice::from_raw_parts(0x90000000 as *const u8, 8) };
-        read_string.push_str("\n\nMemory mapped:\n");
-        for byte in read_slice.iter() {
-            read_string.push_str(&format!("{:02x} ", *byte));
-        }
-
-        // Setup the keypad for reading.
-        let keymatrix = KeyMatrix::new(
-            gpioa.pa0, gpioa.pa1, gpioa.pa2, gpioa.pa3, gpioa.pa4, gpioa.pa5, gpioa.pa6, gpioa.pa7,
-            gpioa.pa8, gpioc.pc0, gpioc.pc1, gpioc.pc2, gpioc.pc3, gpioc.pc4, gpioc.pc5,
-        );
-
-        let mut keypad = KeyPad::new(keymatrix);
-
-        // Setup the LED (currently just using it with 7 colours or off).
-        let mut led = Led::new(
-            gpiob.pb4.into_push_pull_output(),
-            gpiob.pb5.into_push_pull_output(),
-            gpiob.pb0.into_push_pull_output(),
-        );
-
-        led.blue();
-
-        let mut power_state = true;
 
         // Take onwership of the LCD pins and set them to the correct modes.
         let lcd_pins = LcdPins {
@@ -219,12 +135,81 @@ const APP: () = {
             gpiob.pb11.into_floating_input(),
             gpiod.pd6.into_push_pull_output(),
             &mut delay,
+            HCLK,
         );
 
-        // Print the first 64 bytes at address 0x90001000 of external flash to the display in ASCII
-        // formatted hexadecimal, displayed in groups of 4 (making them 32 bit integers);
-        display.write_top(&read_string);
+        // Initialize the external flash chip.
+        let mut external_flash = external_flash.init(&mut delay);
+
+        let (manufacturer, device) = external_flash.read_ids();
+        assert_eq!(manufacturer, 0x1F);
+        assert_eq!(device, 0x16);
+
+        // Read the data at the pointer as an ascii hex encoded string.
+        display.write_top_fmt(format_args!(
+            "Manufacturer: {:#04x}\nDevice: {:#04x}",
+            manufacturer, device
+        ));
+
+        display.write_top("\n\nBefore erase:\n");
+        for i in 0..8 {
+            let byte = external_flash.read_byte(i);
+            display.write_top_fmt(format_args!("{:02x} ", byte));
+        }
+
+        // This also works but is very slow.
+        // From the datasheet: Chip Erase Time: 30s typ., 150s max
+        // external_flash.write_enable();
+        // external_flash.chip_erase();
+
+        external_flash.write_enable();
+        external_flash.block_erase_4k(0);
+
+        display.write_top("\n\nAfter erase:\n");
+        for i in 0..8 {
+            let byte = external_flash.read_byte(i);
+            display.write_top_fmt(format_args!("{:02x} ", byte));
+        }
+
+        external_flash.write_enable();
+        external_flash.program_page(0, &[0x12, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF]);
+
+        display.write_top("\n\nAfter write:\n");
+        for i in 0..8 {
+            let byte = external_flash.read_byte(i);
+            display.write_top_fmt(format_args!("{:02x} ", byte));
+        }
+
+        let _external_flash = external_flash.into_memory_mapped();
+
+        // Create a pointer to the first 8 bytes at the address 0x90000000 of external flash.
+        let read_slice = unsafe { slice::from_raw_parts(0x90000000 as *const u8, 8) };
+        display.write_top("\n\nMemory mapped:\n");
+        for byte in read_slice.iter() {
+            display.write_top_fmt(format_args!("{:02x} ", byte));
+        }
+
+        // Draw display contents
         display.draw_top(false);
+
+        // Setup the keypad for reading.
+        let keymatrix = KeyMatrix::new(
+            gpioa.pa0, gpioa.pa1, gpioa.pa2, gpioa.pa3, gpioa.pa4, gpioa.pa5, gpioa.pa6, gpioa.pa7,
+            gpioa.pa8, gpioc.pc0, gpioc.pc1, gpioc.pc2, gpioc.pc3, gpioc.pc4, gpioc.pc5,
+        );
+
+        let mut keypad = KeyPad::new(keymatrix);
+
+        // Setup the LED (currently just using it with 7 colours or off).
+        let mut led = Led::new(
+            gpiob.pb4.into_push_pull_output(),
+            gpiob.pb5.into_push_pull_output(),
+            gpiob.pb0.into_push_pull_output(),
+        );
+
+        led.blue();
+
+        let mut power_state = true;
 
         // Holds the keys pressed on the previous scan.
         let mut last_pressed: heapless::Vec<Key, 46> = heapless::Vec::new();
@@ -274,10 +259,12 @@ const APP: () = {
                         // If `Key::EXE` is pressed create a new line and do not do anything else.
                         if keys.contains(&Key::EXE) {
                             // Push the text in the input bar into the output display.
-                            display.write_bottom_to_top();
+                            display = display.write_bottom_to_top();
                             // Write the key count (with padding so that it appears left alligned)
                             // to the output section of the display.
-                            display.write_top(&format!("\n{: >52}", key_count));
+                            display
+                                .write_fmt(format_args!("\n{: >52}", key_count))
+                                .unwrap();
                             // Draw both sections of the display.
                             display.draw_all();
                         } else {
@@ -315,12 +302,6 @@ const APP: () = {
         }
     }
 };
-
-#[inline(never)]
-#[alloc_error_handler]
-fn oom(layout: Layout) -> ! {
-    panic!("OOM: {:?}", layout);
-}
 
 #[inline(never)]
 #[panic_handler]
