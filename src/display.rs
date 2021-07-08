@@ -98,7 +98,7 @@ impl Display {
         delay: &mut Delay,
         clocks: &Clocks,
     ) -> Self {
-        let ns_to_cycles = |ns: u32| (clocks.hclk().0 / 1_000_000) * ns;
+        let ns_to_cycles = |ns: u32| (clocks.hclk().0 / 1_000_000) * ns / 1000;
 
         let tedge: u32 = 15;
         let twc: u32 = 66;
@@ -115,6 +115,8 @@ impl Display {
         let read_timing = Timing::default()
             .data(read_data_cycles as u8)
             .address_setup(read_addrsetup_cycles as u8)
+            .address_hold(0)
+            .bus_turnaround(0)
             .access_mode(AccessMode::ModeA);
 
         let twdatast = twrl + tedge;
@@ -126,6 +128,8 @@ impl Display {
         let write_timing = Timing::default()
             .data(write_data_cycles as u8)
             .address_setup(write_addrsetup_cycles as u8)
+            .address_hold(0)
+            .bus_turnaround(0)
             .access_mode(AccessMode::ModeA);
 
         power_pin.set_high().unwrap();
