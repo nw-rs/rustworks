@@ -555,7 +555,6 @@ dependencies = [
  "display-interface",
  "embedded-graphics",
  "embedded-hal",
- "heapless 0.7.3",
  "nb 1.0.0",
 ]
 
