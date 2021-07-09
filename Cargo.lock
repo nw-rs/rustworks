@@ -588,7 +588,7 @@ dependencies = [
 [[package]]
 name = "stm32f7xx-hal"
 version = "0.3.0"
-source = "git+https://github.com/willemml/stm32f7xx-hal?branch=fmc_lcd#e1832944d8f3ee2a73387612ae6f60210c153649"
+source = "git+https://github.com/stm32-rs/stm32f7xx-hal?rev=0d38cf8#0d38cf8a1ab80ce29f09a8d600c62d7d95c10c3f"
 dependencies = [
  "as-slice",
  "bare-metal",
