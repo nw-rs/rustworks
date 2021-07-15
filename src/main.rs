@@ -21,6 +21,8 @@ use stm32f7xx_hal::{
     prelude::*,
 };
 
+pub use stm32f7xx_hal;
+
 pub mod display;
 pub mod external_flash;
 pub mod keypad;
