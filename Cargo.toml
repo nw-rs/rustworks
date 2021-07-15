@@ -24,8 +24,13 @@ num-traits = { version = "0.2", default-features = false }
 num-derive = "0.3"
 hex = { version = "0.4", default-features = false }
 
+[lib]
+name = "rustworks"
+path = "src/lib.rs"
+
 [[bin]]
 name = "rustworks"
+path = "src/main.rs"
 test = false
 bench = false
 

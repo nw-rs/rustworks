@@ -21,19 +21,12 @@ use stm32f7xx_hal::{
     prelude::*,
 };
 
-pub use stm32f7xx_hal;
-
-pub mod display;
-pub mod external_flash;
-pub mod keypad;
-pub mod led;
+use rustworks::*;
 
 use display::Display;
 use external_flash::ExternalFlash;
 use keypad::{Key, KeyMatrix, KeyPad};
 use led::Led;
-
-const HCLK: u32 = 216_000_000;
 
 #[app(device = stm32f7xx_hal::pac, peripherals = true)]
 const APP: () = {
