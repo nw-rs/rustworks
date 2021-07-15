@@ -263,9 +263,9 @@ dependencies = [
 
 [[package]]
 name = "embedded-text"
-version = "0.5.0-beta.1"
+version = "0.5.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "678b7f931bc28619453685226c11083dcf124cd2ec55a63248281f3754702070"
+checksum = "08d3c34cbce269dc29fead70746483c8ed1f085827e40110a20c8c5b114a9e0e"
 dependencies = [
  "az",
  "embedded-graphics",
@@ -550,11 +550,13 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 [[package]]
 name = "st7789"
 version = "0.6.0"
-source = "git+https://github.com/almindor/st7789?branch=eg070#67248db707e63441be9a7efb59a4186d26ab1371"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7218ee25103cf115a99c7e5442ed291907dc9e08d8b5f4c83d56189fa6d58ced"
 dependencies = [
  "display-interface",
- "embedded-graphics",
+ "embedded-graphics-core",
  "embedded-hal",
+ "heapless 0.7.3",
  "nb 1.0.0",
 ]
 
