@@ -1,4 +1,4 @@
-/* For STM32F750 devices */
+/* For STM32F730 devices */
 MEMORY
 {
   /* NOTE K = KiBi = 1024 bytes */
@@ -7,7 +7,7 @@ MEMORY
 	QSPI : ORIGIN = 0x90000000, LENGTH = 8M
 }
 
-/*SECTIONS {
+SECTIONS {
   .qspi ORIGIN(QSPI) : {
     KEEP(*(.qspi));
   } > QSPI

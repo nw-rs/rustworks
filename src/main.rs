@@ -28,9 +28,9 @@ use external_flash::ExternalFlash;
 use keypad::{Key, KeyMatrix, KeyPad};
 use led::Led;
 
-//#[used]
-//#[link_section = ".qspi"]
-//static STUFF: [u8; include_bytes!("../README.md").len()] = *include_bytes!("../README.md");
+#[used]
+#[link_section = ".qspi"]
+static STUFF: [u8; include_bytes!("../README.md").len()] = *include_bytes!("../README.md");
 
 #[app(device = stm32f7xx_hal::pac, peripherals = true)]
 const APP: () = {
