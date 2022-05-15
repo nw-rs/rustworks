@@ -12,6 +12,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloc-cortex-m"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5069e21ec61f3b243a4a4c56d920d3206e6ee86022a67c23e9fe36eb60fc1efd"
+dependencies = [
+ "cortex-m 0.7.3",
+ "linked_list_allocator",
+]
+
+[[package]]
 name = "as-slice"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -64,18 +74,6 @@ name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
-
-[[package]]
-name = "bitvec"
-version = "0.19.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8942c8d352ae1838c9dda0b0ca2ab657696ef2232a20147cf1b30ae1a9cb4321"
-dependencies = [
- "funty",
- "radium",
- "tap",
- "wyz",
-]
 
 [[package]]
 name = "bxcan"
@@ -267,12 +265,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "funty"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fed34cd105917e91daa4da6b3728c47b068749d6a62c59811f06ed2ac71d9da7"
-
-[[package]]
 name = "generic-array"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -327,10 +319,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "memchr"
-version = "2.3.4"
+name = "linked_list_allocator"
+version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ee1c47aaa256ecabcaea351eae4a9b01ef39ed810004e298d2511ed284b1525"
+checksum = "822add9edb1860698b79522510da17bef885171f75aa395cff099d770c609c24"
 
 [[package]]
 name = "micromath"
@@ -352,18 +344,6 @@ name = "nb"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "546c37ac5d9e56f55e73b677106873d9d9f5190605e41a856503623648488cae"
-
-[[package]]
-name = "nom"
-version = "6.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c5c51b9083a3c620fa67a2a635d1ce7d95b897e957d6b28ff9a5da960a103a6"
-dependencies = [
- "bitvec",
- "funty",
- "memchr",
- "version_check",
-]
 
 [[package]]
 name = "num-derive"
@@ -420,24 +400,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2a38df5b15c8d5c7e8654189744d8e396bddc18ad48041a500ce52d6948941f"
 
 [[package]]
-name = "radium"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "941ba9d78d8e2f7ce474c015eea4d9c6d25b6a3327f9832ee29a4de27f91bbb8"
-
-[[package]]
 name = "rand_core"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d34f1408f55294453790c48b2f1ebbb1c5b4b7563eb1f418bcfcfdbb06ebb4e7"
-
-[[package]]
-name = "rcas"
-version = "0.1.0"
-source = "git+https://github.com/willemml/rcas#cd68478d6870932c507289f3d1006f19ea9c9623"
-dependencies = [
- "nom",
-]
 
 [[package]]
 name = "rtcc"
@@ -480,6 +446,7 @@ dependencies = [
 name = "rustworks"
 version = "0.0.1"
 dependencies = [
+ "alloc-cortex-m",
  "cortex-m 0.6.7",
  "cortex-m-rt",
  "display-interface-parallel-gpio",
@@ -490,10 +457,12 @@ dependencies = [
  "hex",
  "num-derive",
  "num-traits",
- "rcas",
  "rtt-target",
  "st7789",
+ "stm32-usbd",
  "stm32f7xx-hal",
+ "usb-device",
+ "usbd-dfu",
 ]
 
 [[package]]
@@ -546,6 +515,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "stm32-usbd"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6c94998f166d66b210a164648a0b7866428d8f1e0740bf8a4c5edd89d4750c1"
+dependencies = [
+ "cortex-m 0.7.3",
+ "usb-device",
+ "vcell",
+]
+
+[[package]]
 name = "stm32f7"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -576,6 +556,7 @@ dependencies = [
  "rtcc",
  "stm32-fmc",
  "stm32f7",
+ "synopsys-usb-otg",
  "void",
 ]
 
@@ -591,10 +572,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "tap"
-version = "1.0.1"
+name = "synopsys-usb-otg"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
+checksum = "d1216cb0fe29f65bfffe03c364640202eed1291d85d2f62bbadbe670106786e5"
+dependencies = [
+ "cortex-m 0.6.7",
+ "usb-device",
+ "vcell",
+]
 
 [[package]]
 name = "typenum"
@@ -613,6 +599,21 @@ name = "unicode-xid"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
+
+[[package]]
+name = "usb-device"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6be90410d4772074ea49525e2e753b65920b94b57eee21a6ef7b6a6fe6296245"
+
+[[package]]
+name = "usbd-dfu"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ec4d1eebd92f4805553a45947d87b0cf9ba53960040a2fa5ed2abcad2ae62e5"
+dependencies = [
+ "usb-device",
+]
 
 [[package]]
 name = "vcell"
@@ -640,9 +641,3 @@ checksum = "0d67cb4616d99b940db1d6bd28844ff97108b498a6ca850e5b6191a532063286"
 dependencies = [
  "vcell",
 ]
-
-[[package]]
-name = "wyz"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85e60b0d1b5f99db2556934e21937020776a5d31520bf169e851ac44e6420214"

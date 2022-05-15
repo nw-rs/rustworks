@@ -1,78 +1,64 @@
 #![no_std]
 #![no_main]
 #![allow(dead_code)]
+#![feature(alloc_error_handler)]
 
 extern crate cortex_m_rt as rt;
 extern crate stm32f7xx_hal as hal;
-use hal::pac;
 
+extern crate alloc;
+
+use alloc_cortex_m::CortexMHeap;
+
+use hal::otg_fs::UsbBus;
 use rt::entry;
+use usb_device::device::{UsbDeviceBuilder, UsbVidPid};
+use usbd_dfu::DFUClass;
 
-use core::fmt::Write;
-use core::slice;
-use hal::gpio::Speed;
+use core::{fmt::Write, alloc::Layout};
 
 use rtt_target::{rprintln, rtt_init_print};
 
 use core::panic::PanicInfo;
 
-use hal::{
-    delay::Delay,
-    fmc_lcd::{ChipSelect1, LcdPins},
-    gpio::GpioExt,
-    prelude::*,
-    rcc::{HSEClock, HSEClockMode},
-};
+use keypad::Key;
+use rustworks::{*, dfu::QspiDfu};
 
-use rustworks::*;
-
-use display::Display;
-use external_flash::ExternalFlash;
-use keypad::{Key, KeyMatrix, KeyPad};
-use led::Led;
+#[global_allocator]
+static ALLOCATOR: CortexMHeap = CortexMHeap::empty();
 
 #[inline(never)]
-#[link_section = ".internal"]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     rprintln!("{}", info);
-    cortex_m::peripheral::SCB::sys_reset();
+    loop {}
 }
 
-#[used]
-#[link_section = ".external"]
-static STUFF: [u8; include_bytes!("../README.md").len()] = *include_bytes!("../README.md");
+#[alloc_error_handler]
+fn oom(layout: Layout) -> ! {
+    rprintln!("{:?}", layout);
+    loop {}
+}
 
-#[link_section = ".internal"]
 #[entry]
 fn main() -> ! {
     // Initialize RTT printing (for debugging).
     rtt_init_print!(NoBlockTrim, 4096);
 
-    let mut cp = cortex_m::Peripherals::take().unwrap();
-    let mut dp = pac::Peripherals::take().unwrap();
+    {
+        use core::mem::MaybeUninit;
+        const HEAP_SIZE: usize = 2048;
+        static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
+        unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP_SIZE) }
+    }
 
-    init_mpu(&mut cp.MPU);
+    let (external_flash, mut display, mut keypad, mut led, usb, mut delay, _clocks) =
+        get_devices(false);
 
-    let gpioa = dp.GPIOA.split();
-    let gpioc = dp.GPIOC.split();
-    let gpiob = dp.GPIOB.split();
-    let gpiod = dp.GPIOD.split();
-    let gpioe = dp.GPIOE.split();
+    static mut EP_MEMORY: [u32; 1024] = [0; 1024];
 
-    // Take ownership of the QSPI pins (to prevent them from being messed with later) and set
-    // them to the correct modes.
-    let qspi_pins = (
-        gpiob.pb2.into_alternate_af9().set_speed(Speed::VeryHigh),
-        gpiob.pb6.into_alternate_af10().set_speed(Speed::VeryHigh),
-        gpioc.pc9.into_alternate_af9().set_speed(Speed::VeryHigh),
-        gpiod.pd12.into_alternate_af9().set_speed(Speed::VeryHigh),
-        gpiod.pd13.into_alternate_af9().set_speed(Speed::VeryHigh),
-        gpioe.pe2.into_alternate_af9().set_speed(Speed::VeryHigh),
-    );
+    let usb_bus = UsbBus::new(usb, unsafe { &mut EP_MEMORY });
 
-    // Setup external flash over QSPI.
-    let external_flash = ExternalFlash::new(&mut dp.RCC, dp.QUADSPI, qspi_pins);
 
     /* -- Disabled internal flash test write as it crashes probe-rs --
     use stm32f7xx_hal::flash::Flash;
@@ -94,55 +80,6 @@ fn main() -> ! {
     flash.lock();
     */
 
-    // Configure the system clocks.
-    let rcc = dp.RCC.constrain();
-    let clocks = rcc
-        .cfgr
-        .hse(HSEClock::new(8.mhz(), HSEClockMode::Oscillator))
-        .use_pll()
-        .sysclk(HCLK.hz())
-        .freeze();
-    let mut delay = Delay::new(cp.SYST, clocks);
-
-    // Take onwership of the LCD pins and set them to the correct modes.
-    let lcd_pins = LcdPins {
-        data: (
-            gpiod.pd14.into_alternate_af12(),
-            gpiod.pd15.into_alternate_af12(),
-            gpiod.pd0.into_alternate_af12(),
-            gpiod.pd1.into_alternate_af12(),
-            gpioe.pe7.into_alternate_af12(),
-            gpioe.pe8.into_alternate_af12(),
-            gpioe.pe9.into_alternate_af12(),
-            gpioe.pe10.into_alternate_af12(),
-            gpioe.pe11.into_alternate_af12(),
-            gpioe.pe12.into_alternate_af12(),
-            gpioe.pe13.into_alternate_af12(),
-            gpioe.pe14.into_alternate_af12(),
-            gpioe.pe15.into_alternate_af12(),
-            gpiod.pd8.into_alternate_af12(),
-            gpiod.pd9.into_alternate_af12(),
-            gpiod.pd10.into_alternate_af12(),
-        ),
-        address: gpiod.pd11.into_alternate_af12(),
-        read_enable: gpiod.pd4.into_alternate_af12(),
-        write_enable: gpiod.pd5.into_alternate_af12(),
-        chip_select: ChipSelect1(gpiod.pd7.into_alternate_af12()),
-    };
-
-    // Setup the display.
-    let mut display = Display::new(
-        lcd_pins,
-        dp.FMC,
-        gpioe.pe1.into_push_pull_output(),
-        gpioc.pc8.into_push_pull_output(),
-        gpioe.pe0.into_push_pull_output(),
-        gpiob.pb11.into_floating_input(),
-        gpiod.pd6.into_push_pull_output(),
-        &mut delay,
-        &clocks,
-    );
-
     // Initialize the external flash chip.
     let mut external_flash = external_flash.init(&mut delay);
 
@@ -157,7 +94,7 @@ fn main() -> ! {
     ));
 
     display.write_top("\n\nBefore erase:\n");
-    for i in 0..512 {
+    for i in 0..8 {
         let byte = external_flash.read_byte(i);
         display.write_top_fmt(format_args!("{:02x}", byte));
     }
@@ -185,32 +122,17 @@ fn main() -> ! {
         display.write_top_fmt(format_args!("{:02x} ", byte));
     }
 
-    let _external_flash = external_flash.into_memory_mapped();
+    // let _external_flash = external_flash.into_memory_mapped();
 
-    // Create a pointer to the first 8 bytes at the address 0x90000000 of external flash.
-    let read_slice = unsafe { slice::from_raw_parts(0x90000000 as *const u8, 8) };
-    display.write_top("\n\nMemory mapped:\n");
-    for byte in read_slice.iter() {
-        display.write_top_fmt(format_args!("{:02x} ", byte));
-    }
+    // // Create a pointer to the first 8 bytes at the address 0x90000000 of external flash.
+    // let read_slice = unsafe { slice::from_raw_parts(0x90000000 as *const u8, 8) };
+    // display.write_top("\n\nMemory mapped:\n");
+    // for byte in read_slice.iter() {
+    //     display.write_top_fmt(format_args!("{:02x} ", byte));
+    // }
 
     // Draw display contents
     display.draw_top(false);
-
-    // Setup the keypad for reading.
-    let keymatrix = KeyMatrix::new(
-        gpioa.pa0, gpioa.pa1, gpioa.pa2, gpioa.pa3, gpioa.pa4, gpioa.pa5, gpioa.pa6, gpioa.pa7,
-        gpioa.pa8, gpioc.pc0, gpioc.pc1, gpioc.pc2, gpioc.pc3, gpioc.pc4, gpioc.pc5,
-    );
-
-    let mut keypad = KeyPad::new(keymatrix);
-
-    // Setup the LED (currently just using it with 7 colours or off).
-    let mut led = Led::new(
-        gpiob.pb4.into_push_pull_output(),
-        gpiob.pb5.into_push_pull_output(),
-        gpiob.pb0.into_push_pull_output(),
-    );
 
     led.blue();
 
@@ -228,7 +150,20 @@ fn main() -> ! {
     // Total number of keypresses.
     let mut key_count = 0usize;
 
+    let dfu_mem = QspiDfu::new(external_flash);
+
+    let mut dfu = DFUClass::new(&usb_bus, dfu_mem);
+
+    let mut usb_dev = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0x0483, 0xdf11))
+        .manufacturer("Numworks")
+        .product("RustWorks Bootloader")
+        .serial_number("TEST")
+        .device_class(0x02)
+        .build();
+
     loop {
+        usb_dev.poll(&mut [&mut dfu]);
+
         // Read the keys currently pressed.
         let keys = keypad.read(&mut delay);
         // Make sure that the keys currently pressed are not the same as the last scan (done to
@@ -304,58 +239,5 @@ fn main() -> ! {
             }
             last_pressed = keys;
         }
-    }
-}
-
-fn init_mpu(mpu: &mut cortex_m::peripheral::MPU) {
-    unsafe {
-        const FULL_ACCESS: u32 = 0b011 << 24;
-        const PRIVILEGED_RO: u32 = 0b101 << 24;
-        const SIZE_512MB: u32 = 28 << 1;
-        const SIZE_8MB: u32 = 22 << 1;
-        const DEVICE_SHARED: u32 = 0b000001 << 16;
-        const NORMAL_SHARED: u32 = 0b000110 << 16;
-
-        // Flash
-        mpu.rnr.write(0);
-        mpu.rbar.write(0x0000_0000);
-        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | 1);
-
-        // SRAM
-        mpu.rnr.write(1);
-        mpu.rbar.write(0x2000_0000);
-        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | NORMAL_SHARED | 1);
-
-        // Peripherals
-        mpu.rnr.write(2);
-        mpu.rbar.write(0x4000_0000);
-        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | DEVICE_SHARED | 1);
-
-        // FSMC
-        mpu.rnr.write(3);
-        mpu.rbar.write(0x6000_0000);
-        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | DEVICE_SHARED | 1);
-
-        // FSMC
-        mpu.rnr.write(4);
-        mpu.rbar.write(0xA000_0000);
-        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | DEVICE_SHARED | 1);
-
-        // Core peripherals
-        mpu.rnr.write(5);
-        mpu.rbar.write(0xE000_0000);
-        mpu.rasr.write(FULL_ACCESS | SIZE_512MB | 1);
-
-        // QSPI
-        mpu.rnr.write(6);
-        mpu.rbar.write(0x9000_0000);
-        mpu.rasr.write(27 << 1 | 1 << 28 | 1);
-
-        mpu.rnr.write(7);
-        mpu.rbar.write(0x9000_0000);
-        mpu.rasr.write(FULL_ACCESS | SIZE_8MB | DEVICE_SHARED | 1);
-
-        // Enable MPU
-        mpu.ctrl.write(1);
     }
 }

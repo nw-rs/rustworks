@@ -8,22 +8,9 @@ MEMORY
 }
 
 SECTIONS {
-  .text :
-  {
-    *(.text .text.*);
-  } > FLASH
-
-  .internal ORIGIN(FLASH) + SIZEOF(.vector_table) + SIZEOF(.text) : {
-    (*(.internal .internal.*));
-  }
-
   .external : {
     (*(.external .external.*);
   } > QSPI
-
-  /DISCARD/ : {
-    *(.ARM.exidx .ARM.exidx.*);
-  }
 }
 
 /* This is where the call stack will be allocated. */
