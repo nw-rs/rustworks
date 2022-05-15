@@ -24,7 +24,7 @@ use embedded_graphics::{
     prelude::*,
     primitives::{PrimitiveStyleBuilder, Rectangle},
 };
-use embedded_text::{alignment::VerticalAlignment, TextBox};
+use embedded_text::{plugin::tail::Tail, TextBox};
 
 pub const DISPLAY_WIDTH: u16 = 320;
 pub const DISPLAY_HEIGHT: u16 = 240;
@@ -262,14 +262,10 @@ impl Display {
                 .unwrap();
         }
 
-        TextBox::with_vertical_alignment(
-            &self.bottom,
-            bottom_bounds,
-            character_style,
-            VerticalAlignment::Scrolling,
-        )
-        .draw(&mut self.display)
-        .unwrap();
+        TextBox::new(&self.bottom, bottom_bounds, character_style)
+            .add_plugin(Tail)
+            .draw(&mut self.display)
+            .unwrap();
     }
 
     pub fn draw_top(&mut self, clear: bool) {
@@ -284,14 +280,10 @@ impl Display {
                 .unwrap();
         }
 
-        TextBox::with_vertical_alignment(
-            &self.top,
-            top_bounds,
-            character_style,
-            VerticalAlignment::Scrolling,
-        )
-        .draw(&mut self.display)
-        .unwrap();
+        TextBox::new(&self.top, top_bounds, character_style)
+            .add_plugin(Tail)
+            .draw(&mut self.display)
+            .unwrap();
     }
 
     pub fn draw_all(&mut self) {
