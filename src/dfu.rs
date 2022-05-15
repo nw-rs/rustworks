@@ -55,8 +55,7 @@ impl DFUMemIO for QspiDfu {
         self.read_buf.shrink_to_fit();
         self.flash.write_disable();
         for i in 0..(length as u32) {
-            let byte = self.flash.read_byte(address + i);
-            rprintln!("Read byte: {}", byte);
+            let byte = self.flash.read_byte(address - Self::INITIAL_ADDRESS_POINTER + i);
             self.read_buf.push(byte);
         }
         let result = &self.read_buf.as_slice()[0..length];
@@ -66,14 +65,13 @@ impl DFUMemIO for QspiDfu {
     fn program(&mut self, address: u32, length: usize) -> Result<(), usbd_dfu::DFUMemError> {
         let drain = self.buffer.drain(0..(length - 1));
         let slice = drain.as_slice();
-        rprintln!("Program: {:?}", slice);
         self.flash.write_enable();
-        self.flash.program_page(address, slice);
+        self.flash.program_page(address - Self::INITIAL_ADDRESS_POINTER, slice);
         Ok(())
     }
 
     fn erase(&mut self, address: u32) -> Result<(), usbd_dfu::DFUMemError> {
-        self.flash.block_erase_4k(address);
+        self.flash.block_erase_4k(address - Self::INITIAL_ADDRESS_POINTER);
         Ok(())
     }
 
