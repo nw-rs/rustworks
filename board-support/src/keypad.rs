@@ -1,5 +1,4 @@
 use embedded_hal::blocking::delay::DelayUs;
-use heapless::Vec;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use stm32f7xx_hal::gpio::gpioa::{PA, PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PA8};
@@ -27,7 +26,7 @@ impl KeyPad {
         }
     }
 
-    pub fn read(&mut self, delay: &mut impl DelayUs<u32>) -> Vec<Key, 46> {
+    pub fn read(&mut self, delay: &mut impl DelayUs<u32>) -> [Key; 46] {
         let state = self.matrix.scan(delay);
         let sum: u16 = state.iter().map(|s| *s as u16).sum();
         let switches = state_to_switches(state);
@@ -42,7 +41,13 @@ impl KeyPad {
         } else {
             |sw: &Switch| sw.to_key()
         };
-        let keys: Vec<Key, 46> = switches.iter().map(switch_to_key).collect();
+        let iter = switches.iter().map(switch_to_key);
+        let mut keys: [Key; 46] = [Key::NONE; 46];
+        let mut index = 0;
+        iter.for_each(|k| {
+            keys[index] = k;
+            index += 1;
+        });
         if sum != self.last_state {
             self.last_state = sum;
             if keys.contains(&Key::AlphaLock) {
@@ -102,6 +107,7 @@ pub enum Switch {
     R8C3 = 0x83,
     R8C4 = 0x84,
     R8C5 = 0x85,
+    NONE = 0xff,
 }
 
 impl Switch {
@@ -153,6 +159,7 @@ impl Switch {
             Self::R8C3 => Key::EE,
             Self::R8C4 => Key::Ans,
             Self::R8C5 => Key::EXE,
+            Self::NONE => Key::NONE
         }
     }
     pub fn to_key_shift(&self) -> Key {
@@ -322,6 +329,7 @@ pub enum Key {
     Space,
     Question,
     Exclamation,
+    NONE,
 }
 
 impl From<Key> for char {
@@ -499,13 +507,15 @@ impl KeyMatrix {
     }
 }
 
-fn state_to_switches(state: [u8; 9]) -> Vec<Switch, 46> {
-    let mut keys = Vec::new();
+fn state_to_switches(state: [u8; 9]) -> [Switch; 46] {
+    let mut keys = [Switch::NONE; 46];
+    let mut index = 0;
     for (n, row) in state.iter().enumerate() {
         let start = 0x10 * n as u8;
         for col in [1u8, 2, 4, 8, 16, 32].iter() {
             if let Some(key) = col_to_key(start, *row, *col) {
-                keys.push(key).unwrap();
+                keys[index] = key;
+                index += 1;
             }
         }
     }

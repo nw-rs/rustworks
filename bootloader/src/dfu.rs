@@ -1,23 +1,18 @@
-use alloc::vec::Vec;
-use rtt_target::rprintln;
 use usbd_dfu::DFUMemIO;
-
-extern crate alloc;
 
 use crate::external_flash::{ExternalFlash, Indirect};
 
 pub struct QspiDfu {
     flash: ExternalFlash<Indirect>,
-    buffer: Vec<u8>,
-    read_buf: Vec<u8>,
+    buffer: [u8; Self::TRANSFER_SIZE as usize],
 }
 
 impl QspiDfu {
+    const EMPTY_BUFFER: [u8; Self::TRANSFER_SIZE as usize] = [0; Self::TRANSFER_SIZE as usize];
     pub fn new(flash: ExternalFlash<Indirect>) -> Self {
         QspiDfu {
             flash,
-            buffer: Vec::new(),
-            read_buf: Vec::new()
+            buffer: [0; Self::TRANSFER_SIZE as usize],
         }
     }
 }
@@ -25,7 +20,8 @@ impl QspiDfu {
 impl DFUMemIO for QspiDfu {
     const INITIAL_ADDRESS_POINTER: u32 = 0x90000000;
 
-    const MEM_INFO_STRING: &'static str = "@ExternalFlash/0x90000000/08*004Kg,01*032Kg,63*064Kg,64*064Kg";
+    const MEM_INFO_STRING: &'static str =
+        "@ExternalFlash/0x90000000/08*004Kg,01*032Kg,63*064Kg,64*064Kg";
 
     const HAS_DOWNLOAD: bool = true;
 
@@ -37,7 +33,7 @@ impl DFUMemIO for QspiDfu {
 
     const ERASE_TIME_MS: u32 = 60;
 
-    const FULL_ERASE_TIME_MS: u32 =  30000;
+    const FULL_ERASE_TIME_MS: u32 = 30000;
 
     const MANIFESTATION_TIME_MS: u32 = 1;
 
@@ -46,32 +42,34 @@ impl DFUMemIO for QspiDfu {
     const TRANSFER_SIZE: u16 = 128;
 
     fn store_write_buffer(&mut self, src: &[u8]) -> Result<(), ()> {
-        self.buffer.extend_from_slice(src);
+        self.buffer = Self::EMPTY_BUFFER;
+        self.buffer.copy_from_slice(src);
         Ok(())
     }
 
     fn read(&mut self, address: u32, length: usize) -> Result<&[u8], usbd_dfu::DFUMemError> {
-        self.read_buf.clear();
-        self.read_buf.shrink_to_fit();
+        self.buffer = Self::EMPTY_BUFFER;
         self.flash.write_disable();
         for i in 0..(length as u32) {
-            let byte = self.flash.read_byte(address - Self::INITIAL_ADDRESS_POINTER + i);
-            self.read_buf.push(byte);
+            self.buffer[i as usize] = self
+                .flash
+                .read_byte(address - Self::INITIAL_ADDRESS_POINTER + i);
         }
-        let result = &self.read_buf.as_slice()[0..length];
-        Ok(result)
+        Ok(&self.buffer)
     }
 
     fn program(&mut self, address: u32, length: usize) -> Result<(), usbd_dfu::DFUMemError> {
-        let drain = self.buffer.drain(0..(length - 1));
-        let slice = drain.as_slice();
         self.flash.write_enable();
-        self.flash.program_page(address - Self::INITIAL_ADDRESS_POINTER, slice);
+        self.flash.program_page(
+            address - Self::INITIAL_ADDRESS_POINTER,
+            &self.buffer[0..length],
+        );
         Ok(())
     }
 
     fn erase(&mut self, address: u32) -> Result<(), usbd_dfu::DFUMemError> {
-        self.flash.block_erase_4k(address - Self::INITIAL_ADDRESS_POINTER);
+        self.flash
+            .block_erase_4k(address - Self::INITIAL_ADDRESS_POINTER);
         Ok(())
     }
 

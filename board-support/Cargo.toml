@@ -1,0 +1,28 @@
+[package]
+name = "nw-board-support"
+version = "0.0.1"
+authors = ["willemml <willem@leit.so>"]
+edition = "2018"
+license = "GPL-3.0"
+description = "Board support package for the Numworks n0110 calculator."
+repository = "https://github.com/willemml/rustworks"
+homepage = "https://github.com/willemml/rustworks"
+
+[dependencies]
+cortex-m = "0.6"
+cortex-m-rt = "0.6"
+rtt-target = { version = "0.3", features = ["cortex-m"] }
+embedded-hal = "0.2"
+embedded-graphics = "0.7"
+embedded-text = { version = "0.5.0-beta.1", default-features = false }
+heapless = "0.7"
+st7789 = "0.6"
+stm32f7xx-hal = { git = "https://github.com/stm32-rs/stm32f7xx-hal", rev = "0d38cf8", features = ["stm32f730", "rt", "fmc_lcd", "usb_fs"] }
+num-traits = { version = "0.2", default-features = false }
+num-derive = "0.3"
+usb-device = "0.2"
+stm32-usbd = "0.6"
+
+[lib]
+name = "nw_board_support"
+path = "src/lib.rs"

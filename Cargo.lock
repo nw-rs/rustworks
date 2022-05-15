@@ -12,16 +12,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "alloc-cortex-m"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5069e21ec61f3b243a4a4c56d920d3206e6ee86022a67c23e9fe36eb60fc1efd"
-dependencies = [
- "cortex-m 0.7.3",
- "linked_list_allocator",
-]
-
-[[package]]
 name = "as-slice"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -194,16 +184,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7517c040926d7b02b111884aa089177db80878533127f7c1b480d852c5fb4112"
 
 [[package]]
-name = "display-interface-parallel-gpio"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5302b2830aee1d2275dec183a2d7f9b70a27831e5fe772049e0a7f460d37b200"
-dependencies = [
- "display-interface",
- "embedded-hal",
-]
-
-[[package]]
 name = "embedded-can"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -313,18 +293,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hex"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
-
-[[package]]
-name = "linked_list_allocator"
-version = "0.8.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "822add9edb1860698b79522510da17bef885171f75aa395cff099d770c609c24"
-
-[[package]]
 name = "micromath"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -373,6 +341,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "nw-board-support"
+version = "0.0.1"
+dependencies = [
+ "cortex-m 0.6.7",
+ "cortex-m-rt",
+ "embedded-graphics",
+ "embedded-hal",
+ "embedded-text",
+ "heapless",
+ "num-derive",
+ "num-traits",
+ "rtt-target",
+ "st7789",
+ "stm32-usbd",
+ "stm32f7xx-hal",
+ "usb-device",
+]
+
+[[package]]
+name = "nw-bootloader"
+version = "0.0.1"
+dependencies = [
+ "cortex-m 0.6.7",
+ "cortex-m-rt",
+ "embedded-hal",
+ "nw-board-support",
+ "rtt-target",
+ "usb-device",
+ "usbd-dfu",
 ]
 
 [[package]]
@@ -446,21 +446,11 @@ dependencies = [
 name = "rustworks"
 version = "0.0.1"
 dependencies = [
- "alloc-cortex-m",
  "cortex-m 0.6.7",
  "cortex-m-rt",
- "display-interface-parallel-gpio",
- "embedded-graphics",
  "embedded-hal",
- "embedded-text",
- "heapless",
- "hex",
- "num-derive",
- "num-traits",
+ "nw-board-support",
  "rtt-target",
- "st7789",
- "stm32-usbd",
- "stm32f7xx-hal",
  "usb-device",
  "usbd-dfu",
 ]
