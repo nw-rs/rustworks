@@ -1,4 +1,4 @@
-use stm32f7xx_hal::prelude::_stm327xx_hal_time_U32Ext;
+use fugit::HertzU32;
 use stm32f7xx_hal::rcc::{HSEClock, HSEClockMode, RccExt, PLLP};
 
 use crate::hal::pac::{FLASH, PWR, RCC};
@@ -152,17 +152,18 @@ pub fn init_clocks(rcc: RCC, pwr: &mut PWR, flash: &mut FLASH) -> Clocks {
         rcc.apb2lpenr.reset();
     }
 
+    
     let rcc_constrained = rcc.constrain();
     let clocks = rcc_constrained
         .cfgr
-        .hse(HSEClock::new(8.mhz(), HSEClockMode::Oscillator))
+        .hse(HSEClock::new(HertzU32::MHz(8), HSEClockMode::Oscillator))
         .use_pll()
         .pllm(PLL_M)
         .plln(PLL_N)
         .pllp(PLLP::Div2)
         .pllq(PLL_Q)
-        .hclk(SYSCLK.hz())
-        .sysclk(SYSCLK.hz())
+        .hclk(HertzU32::Hz(SYSCLK))
+        .sysclk(HertzU32::Hz(SYSCLK))
         .freeze();
 
     clocks

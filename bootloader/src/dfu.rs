@@ -28,7 +28,7 @@ impl DFUMemIO for QspiDfu {
 
     const HAS_UPLOAD: bool = true;
 
-    const MANIFESTATION_TOLERANT: bool = true;
+    const MANIFESTATION_TOLERANT: bool = false;
 
     const PROGRAM_TIME_MS: u32 = 5;
 

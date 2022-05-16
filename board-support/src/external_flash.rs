@@ -3,19 +3,20 @@
 use core::marker::PhantomData;
 
 use cortex_m::asm;
-use stm32f7xx_hal::delay::Delay;
 use stm32f7xx_hal::gpio::gpiob::{PB2, PB6};
 use stm32f7xx_hal::gpio::gpioc::PC9;
 use stm32f7xx_hal::gpio::gpiod::{PD12, PD13};
 use stm32f7xx_hal::gpio::gpioe::PE2;
-use stm32f7xx_hal::gpio::{Alternate, AF10, AF9};
-use stm32f7xx_hal::prelude::*;
+use stm32f7xx_hal::gpio::Alternate;
 use stm32f7xx_hal::{pac::QUADSPI, pac::RCC};
+
+pub const FLASH_START: u32 = 0x90000000;
+pub const FLASH_END: u32 = 0x90800000;
 
 // 2^23 = 8MB
 const FLASH_ADDRESS_SIZE: u8 = 23;
 const ADDRESS_WIDTH: u8 = 3;
-const FLASH_SIZE: u32 = 8388608;
+const FLASH_SIZE: u32 = 0x800000;
 
 const N_4K_SECTORS: u8 = 8;
 const N_32K_SECTORS: u8 = 1;
@@ -95,12 +96,12 @@ impl ExternalFlash<Uninitialized> {
         rcc: &mut RCC,
         qspi: QUADSPI,
         _pins: (
-            PB2<Alternate<AF9>>,
-            PB6<Alternate<AF10>>,
-            PC9<Alternate<AF9>>,
-            PD12<Alternate<AF9>>,
-            PD13<Alternate<AF9>>,
-            PE2<Alternate<AF9>>,
+            PB2<Alternate<9>>,
+            PB6<Alternate<10>>,
+            PC9<Alternate<9>>,
+            PD12<Alternate<9>>,
+            PD13<Alternate<9>>,
+            PE2<Alternate<9>>,
         ),
     ) -> Self {
         rcc.ahb3enr.modify(|_, w| w.qspien().set_bit());
@@ -108,16 +109,18 @@ impl ExternalFlash<Uninitialized> {
         // threshold only matters for DMA and is set to 4 to allow word sized DMA requests
 
         // Configure controller for flash chip.
-        qspi.dcr.write_with_zero(|w| unsafe {
-            w.fsize()
-                .bits(FLASH_ADDRESS_SIZE - 1)
-                .csht()
-                .bits(2)
-                .ckmode()
-                .set_bit()
-        });
-        qspi.cr
-            .write_with_zero(|w| unsafe { w.prescaler().bits(3).en().set_bit() });
+        unsafe {
+            qspi.dcr.write_with_zero(|w| {
+                w.fsize()
+                    .bits(FLASH_ADDRESS_SIZE - 1)
+                    .csht()
+                    .bits(2)
+                    .ckmode()
+                    .set_bit()
+            });
+            qspi.cr
+                .write_with_zero(|w| w.prescaler().bits(3).en().set_bit());
+        }
 
         Self {
             qspi,
@@ -127,10 +130,9 @@ impl ExternalFlash<Uninitialized> {
 
     /// Turns on the chip and tells it to switch to QPI mode.
     #[must_use]
-    pub fn init(mut self, delay: &mut Delay) -> ExternalFlash<Indirect> {
+    pub fn init(mut self) -> ExternalFlash<Indirect> {
         // Turn on the chip.
         self.send_spi_command(Command::ReleaseDeepPowerDown, None);
-        delay.delay_us(3_u32);
 
         // Enable writing to the chip so that the status register can be changed.
         self.send_spi_command(Command::WriteEnableVolatile, None);

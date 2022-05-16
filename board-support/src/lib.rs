@@ -3,14 +3,13 @@
 use display::Display;
 use external_flash::{ExternalFlash, Uninitialized};
 use hal::{
-    delay::Delay,
     fmc_lcd::{ChipSelect1, LcdPins},
     gpio::{
         gpiob::{PB0, PB4, PB5},
         GpioExt, Output, PushPull, Speed,
     },
     pac,
-    rcc::Clocks, otg_fs::UsbBus, flash::Flash,
+    rcc::Clocks, otg_fs::UsbBus, flash::Flash, timer::SysTimerExt,
 };
 use keypad::{KeyMatrix, KeyPad};
 use led::Led;
@@ -44,20 +43,23 @@ pub fn get_external_flash() -> ExternalFlash<Uninitialized> {
     let gpioe = dp.GPIOE.split();
 
     let qspi_pins = (
-        gpiob.pb2.into_alternate_af9().set_speed(Speed::VeryHigh),
-        gpiob.pb6.into_alternate_af10().set_speed(Speed::VeryHigh),
-        gpioc.pc9.into_alternate_af9().set_speed(Speed::VeryHigh),
-        gpiod.pd12.into_alternate_af9().set_speed(Speed::VeryHigh),
-        gpiod.pd13.into_alternate_af9().set_speed(Speed::VeryHigh),
-        gpioe.pe2.into_alternate_af9().set_speed(Speed::VeryHigh),
+        gpiob.pb2.into_alternate().set_speed(Speed::VeryHigh),
+        gpiob.pb6.into_alternate().set_speed(Speed::VeryHigh),
+        gpioc.pc9.into_alternate().set_speed(Speed::VeryHigh),
+        gpiod.pd12.into_alternate().set_speed(Speed::VeryHigh),
+        gpiod.pd13.into_alternate().set_speed(Speed::VeryHigh),
+        gpioe.pe2.into_alternate().set_speed(Speed::VeryHigh),
     );
 
     ExternalFlash::new(&mut dp.RCC, dp.QUADSPI, qspi_pins)
 }
 
 /// Init MPU before doing this.
-pub fn get_display(clocks: &Clocks, delay: &mut Delay) -> Display {
+pub fn get_display(clocks: &Clocks) -> Display {
     let dp = unsafe { pac::Peripherals::steal() };
+    let cp = unsafe { cortex_m::Peripherals::steal() };
+
+    let mut delay = cp.SYST.delay(clocks);
 
     let gpioc = dp.GPIOC.split();
     let gpiob = dp.GPIOB.split();
@@ -66,27 +68,27 @@ pub fn get_display(clocks: &Clocks, delay: &mut Delay) -> Display {
 
     let lcd_pins = LcdPins {
         data: (
-            gpiod.pd14.into_alternate_af12(),
-            gpiod.pd15.into_alternate_af12(),
-            gpiod.pd0.into_alternate_af12(),
-            gpiod.pd1.into_alternate_af12(),
-            gpioe.pe7.into_alternate_af12(),
-            gpioe.pe8.into_alternate_af12(),
-            gpioe.pe9.into_alternate_af12(),
-            gpioe.pe10.into_alternate_af12(),
-            gpioe.pe11.into_alternate_af12(),
-            gpioe.pe12.into_alternate_af12(),
-            gpioe.pe13.into_alternate_af12(),
-            gpioe.pe14.into_alternate_af12(),
-            gpioe.pe15.into_alternate_af12(),
-            gpiod.pd8.into_alternate_af12(),
-            gpiod.pd9.into_alternate_af12(),
-            gpiod.pd10.into_alternate_af12(),
+            gpiod.pd14.into_alternate(),
+            gpiod.pd15.into_alternate(),
+            gpiod.pd0.into_alternate(),
+            gpiod.pd1.into_alternate(),
+            gpioe.pe7.into_alternate(),
+            gpioe.pe8.into_alternate(),
+            gpioe.pe9.into_alternate(),
+            gpioe.pe10.into_alternate(),
+            gpioe.pe11.into_alternate(),
+            gpioe.pe12.into_alternate(),
+            gpioe.pe13.into_alternate(),
+            gpioe.pe14.into_alternate(),
+            gpioe.pe15.into_alternate(),
+            gpiod.pd8.into_alternate(),
+            gpiod.pd9.into_alternate(),
+            gpiod.pd10.into_alternate(),
         ),
-        address: gpiod.pd11.into_alternate_af12(),
-        read_enable: gpiod.pd4.into_alternate_af12(),
-        write_enable: gpiod.pd5.into_alternate_af12(),
-        chip_select: ChipSelect1(gpiod.pd7.into_alternate_af12()),
+        address: gpiod.pd11.into_alternate(),
+        read_enable: gpiod.pd4.into_alternate(),
+        write_enable: gpiod.pd5.into_alternate(),
+        chip_select: ChipSelect1(gpiod.pd7.into_alternate()),
     };
 
     Display::new(
@@ -97,7 +99,7 @@ pub fn get_display(clocks: &Clocks, delay: &mut Delay) -> Display {
         gpioe.pe0.into_push_pull_output(),
         gpiob.pb11.into_floating_input(),
         gpiod.pd6.into_push_pull_output(),
-        delay,
+        &mut delay,
         clocks,
     )
 }
@@ -128,7 +130,7 @@ pub fn get_led() -> Led<PB4<Output<PushPull>>, PB5<Output<PushPull>>, PB0<Output
     )
 }
 
-pub fn get_usb_bus_allocator(clocks: Clocks, ep_memory: &'static mut [u32]) -> UsbBusAllocator<UsbBus<USB>> {
+pub fn get_usb_bus_allocator(clocks: &Clocks, ep_memory: &'static mut [u32]) -> UsbBusAllocator<UsbBus<USB>> {
     let dp = unsafe { pac::Peripherals::steal() };
 
     let gpioa = dp.GPIOA.split();
@@ -138,8 +140,8 @@ pub fn get_usb_bus_allocator(clocks: Clocks, ep_memory: &'static mut [u32]) -> U
         dp.OTG_FS_DEVICE,
         dp.OTG_FS_PWRCLK,
         (
-            gpioa.pa11.into_alternate_af10(),
-            gpioa.pa12.into_alternate_af10(),
+            gpioa.pa11.into_alternate(),
+            gpioa.pa12.into_alternate(),
         ),
         clocks,
     );

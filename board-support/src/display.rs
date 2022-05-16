@@ -7,15 +7,13 @@ use heapless::String;
 use st7789::Orientation;
 use st7789::ST7789;
 
-use stm32f7xx_hal::delay::Delay;
 use stm32f7xx_hal::fmc_lcd::{AccessMode, ChipSelect1, FmcLcd, Lcd, SubBank1, Timing};
 use stm32f7xx_hal::gpio::gpiob::PB11;
 use stm32f7xx_hal::gpio::gpioc::PC8;
 use stm32f7xx_hal::gpio::gpiod::{PD0, PD1, PD10, PD11, PD14, PD15, PD4, PD5, PD6, PD7, PD8, PD9};
 use stm32f7xx_hal::gpio::gpioe::{PE0, PE1, PE10, PE11, PE12, PE13, PE14, PE15, PE7, PE8, PE9};
-use stm32f7xx_hal::gpio::{Alternate, Floating, Input, Output, PushPull, AF12};
+use stm32f7xx_hal::gpio::{Alternate, Floating, Input, Output, PushPull};
 use stm32f7xx_hal::pac::FMC;
-use stm32f7xx_hal::prelude::*;
 use stm32f7xx_hal::rcc::Clocks;
 
 use embedded_graphics::{
@@ -24,6 +22,7 @@ use embedded_graphics::{
     prelude::*,
     primitives::{PrimitiveStyleBuilder, Rectangle},
 };
+use embedded_hal::blocking::delay::DelayUs;
 use embedded_text::{plugin::tail::Tail, TextBox};
 
 pub const DISPLAY_WIDTH: u16 = 320;
@@ -39,27 +38,27 @@ const BOTTOM_LINES: usize = 3;
 
 type LcdPins = stm32f7xx_hal::fmc_lcd::LcdPins<
     (
-        PD14<Alternate<AF12>>,
-        PD15<Alternate<AF12>>,
-        PD0<Alternate<AF12>>,
-        PD1<Alternate<AF12>>,
-        PE7<Alternate<AF12>>,
-        PE8<Alternate<AF12>>,
-        PE9<Alternate<AF12>>,
-        PE10<Alternate<AF12>>,
-        PE11<Alternate<AF12>>,
-        PE12<Alternate<AF12>>,
-        PE13<Alternate<AF12>>,
-        PE14<Alternate<AF12>>,
-        PE15<Alternate<AF12>>,
-        PD8<Alternate<AF12>>,
-        PD9<Alternate<AF12>>,
-        PD10<Alternate<AF12>>,
+        PD14<Alternate<12>>,
+        PD15<Alternate<12>>,
+        PD0<Alternate<12>>,
+        PD1<Alternate<12>>,
+        PE7<Alternate<12>>,
+        PE8<Alternate<12>>,
+        PE9<Alternate<12>>,
+        PE10<Alternate<12>>,
+        PE11<Alternate<12>>,
+        PE12<Alternate<12>>,
+        PE13<Alternate<12>>,
+        PE14<Alternate<12>>,
+        PE15<Alternate<12>>,
+        PD8<Alternate<12>>,
+        PD9<Alternate<12>>,
+        PD10<Alternate<12>>,
     ),
-    PD11<Alternate<AF12>>,
-    PD4<Alternate<AF12>>,
-    PD5<Alternate<AF12>>,
-    ChipSelect1<PD7<Alternate<AF12>>>,
+    PD11<Alternate<12>>,
+    PD4<Alternate<12>>,
+    PD5<Alternate<12>>,
+    ChipSelect1<PD7<Alternate<12>>>,
 >;
 
 pub type LcdResetPin = PE1<Output<PushPull>>;
@@ -95,10 +94,10 @@ impl Display {
         mut backlight_pin: LcdBacklightPin,
         _tearing_effect_pin: LcdTearingEffectPin,
         mut extd_cmd_pin: LcdExtdCmdPin,
-        delay: &mut Delay,
+        delay: &mut impl DelayUs<u32>,
         clocks: &Clocks,
     ) -> Self {
-        let ns_to_cycles = |ns: u32| (clocks.hclk().0 / 1_000_000) * ns / 1000;
+        let ns_to_cycles = |ns: u32| (clocks.hclk().to_MHz()) * ns / 1000;
 
         let tedge: u32 = 15;
         let twc: u32 = 66;
@@ -132,22 +131,22 @@ impl Display {
             .bus_turnaround(0)
             .access_mode(AccessMode::ModeA);
 
-        power_pin.set_high().unwrap();
+        power_pin.set_high();
 
-        backlight_pin.set_high().unwrap();
+        backlight_pin.set_high();
 
-        extd_cmd_pin.set_high().unwrap();
+        extd_cmd_pin.set_high();
 
         let (fmc, lcd) = FmcLcd::new(fmc, clocks, lcd_pins, &read_timing, &write_timing);
 
-        reset_pin.set_low().unwrap();
-        delay.delay_ms(5u16);
-        reset_pin.set_high().unwrap();
-        delay.delay_ms(10u16);
-        reset_pin.set_low().unwrap();
-        delay.delay_ms(20u16);
-        reset_pin.set_high().unwrap();
-        delay.delay_ms(10u16);
+        reset_pin.set_low();
+        delay.delay_us(5000u32);
+        reset_pin.set_high();
+        delay.delay_us(10000u32);
+        reset_pin.set_low();
+        delay.delay_us(20000u32);
+        reset_pin.set_high();
+        delay.delay_us(10000u32);
 
         let mut display = ST7789::new(lcd, reset_pin, DISPLAY_WIDTH, DISPLAY_HEIGHT);
 
@@ -178,9 +177,9 @@ impl Display {
 
     pub fn set_backlight(&mut self, target: u8) {
         if target == 0 {
-            self.backlight_pin.set_low().unwrap();
+            self.backlight_pin.set_low();
         } else {
-            self.backlight_pin.set_high().unwrap();
+            self.backlight_pin.set_high();
         }
         self.backlight_state = target;
     }

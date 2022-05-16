@@ -4,12 +4,10 @@
 
 extern crate cortex_m_rt as rt;
 
-use nw_board_support::hal;
+use nw_board_support::hal::{self, timer::SysTimerExt};
 
 use embedded_hal::prelude::_embedded_hal_blocking_delay_DelayMs;
 use rt::entry;
-
-use rtt_target::{rprintln, rtt_init_print};
 
 use core::panic::PanicInfo;
 
@@ -17,28 +15,29 @@ use nw_board_support::*;
 
 #[inline(never)]
 #[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    rprintln!("{}", info);
+fn panic(_info: &PanicInfo) -> ! {
+    //rprintln!("{}", info);
     loop {}
 }
 
 #[entry]
 fn main() -> ! {
-    // Initialize RTT printing (for debugging).
-    rtt_init_print!(NoBlockTrim, 4096);
+    let mut led = get_led();
+    led.blue();
 
-    let mut cp = cortex_m::Peripherals::take().unwrap();
     let mut dp = hal::pac::Peripherals::take().unwrap();
+    let mut cp = cortex_m::Peripherals::take().unwrap();
 
     init_mpu(&mut cp.MPU);
 
     let clocks = init_clocks(dp.RCC, &mut dp.PWR, &mut dp.FLASH);
-    let mut delay = hal::delay::Delay::new(cp.SYST, clocks);
 
-    let mut display = get_display(&clocks, &mut delay);
+    let mut display = get_display(&clocks);
 
     display.write_top("Booted OS.");
     display.draw_all();
+    
+    let mut delay = cp.SYST.delay(&clocks);
 
     let mut led = get_led();
 
