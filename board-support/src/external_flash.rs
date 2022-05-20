@@ -3,11 +3,7 @@
 use core::marker::PhantomData;
 
 use cortex_m::asm;
-use stm32f7xx_hal::gpio::gpiob::{PB2, PB6};
-use stm32f7xx_hal::gpio::gpioc::PC9;
-use stm32f7xx_hal::gpio::gpiod::{PD12, PD13};
-use stm32f7xx_hal::gpio::gpioe::PE2;
-use stm32f7xx_hal::gpio::Alternate;
+use stm32f7xx_hal::pac::{GPIOB, GPIOC, GPIOD, GPIOE};
 use stm32f7xx_hal::{pac::QUADSPI, pac::RCC};
 
 pub const FLASH_START: u32 = 0x90000000;
@@ -87,30 +83,76 @@ pub enum Indirect {}
 pub enum MemoryMapped {}
 
 pub struct ExternalFlash<MODE> {
-    qspi: QUADSPI,
     mode: PhantomData<MODE>,
 }
 
-impl ExternalFlash<Uninitialized> {
-    pub fn new(
-        qspi: QUADSPI,
-        _pins: (
-            PB2<Alternate<9>>,
-            PB6<Alternate<10>>,
-            PC9<Alternate<9>>,
-            PD12<Alternate<9>>,
-            PD13<Alternate<9>>,
-            PE2<Alternate<9>>,
-        ),
-    ) -> Self {
-        // Single flash mode with a QSPI clock prescaler of 2 (216 / 2 = 108 MHz), FIFO
-        // threshold only matters for DMA and is set to 4 to allow word sized DMA requests
+/// Mostly taken from the flash aglo repo: https://github.com/willemml/rsworks-flash-algo/blob/a69c2a6eb31d6d50fefcec3d99a8be4da4ca6e8e/src/main.rs
 
-        // Configure controller for flash chip.
+impl ExternalFlash<Uninitialized> {
+    /// Turns on the chip and tells it to switch to QPI mode.
+    #[must_use]
+    pub fn init() -> ExternalFlash<Indirect> {
         unsafe {
-            let rcc = &*RCC::ptr();
+            let rcc = &(*RCC::ptr());
             rcc.ahb3enr.modify(|_, w| w.qspien().set_bit());
 
+            rcc.ahb3rstr.modify(|_, w| w.qspirst().reset());
+            rcc.ahb3rstr.modify(|_, w| w.qspirst().clear_bit());
+
+            rcc.ahb1enr.modify(|_, w| {
+                w.gpioben()
+                    .set_bit()
+                    .gpiocen()
+                    .set_bit()
+                    .gpioden()
+                    .set_bit()
+                    .gpioeen()
+                    .set_bit()
+            });
+
+            // PB2<Alternate<AF9>>
+            // PB6<Alternate<AF10>>
+            // PC9<Alternate<AF9>>
+            // PD12<Alternate<AF9>>
+            // PD13<Alternate<AF9>>
+            // PE2<Alternate<AF9>>
+
+            let gpiob = &(*GPIOB::ptr());
+            let gpioc = &(*GPIOC::ptr());
+            let gpiod = &(*GPIOD::ptr());
+            let gpioe = &(*GPIOE::ptr());
+
+            gpiob.afrl.modify(|_, w| w.afrl2().af9().afrl6().af10());
+            gpioc.afrh.modify(|_, w| w.afrh9().af9());
+            gpiod.afrh.modify(|_, w| w.afrh12().af9().afrh13().af9());
+            gpioe.afrl.modify(|_, w| w.afrl2().af9());
+
+            gpiob
+                .moder
+                .modify(|_, w| w.moder2().alternate().moder6().alternate());
+            gpioc.moder.modify(|_, w| w.moder9().alternate());
+            gpiod
+                .moder
+                .modify(|_, w| w.moder12().alternate().moder13().alternate());
+            gpioe.moder.modify(|_, w| w.moder2().alternate());
+
+            gpiob
+                .ospeedr
+                .modify(|_, w| w.ospeedr2().very_high_speed().ospeedr6().very_high_speed());
+            gpioc.ospeedr.modify(|_, w| w.ospeedr9().very_high_speed());
+            gpiod.ospeedr.modify(|_, w| {
+                w.ospeedr12()
+                    .very_high_speed()
+                    .ospeedr13()
+                    .very_high_speed()
+            });
+            gpioe.ospeedr.modify(|_, w| w.ospeedr2().very_high_speed());
+
+            let qspi = &(*QUADSPI::ptr());
+            // Single flash mode with a QSPI clock prescaler of 2 (216 / 2 = 108 MHz), FIFO
+            // threshold only matters for DMA and is set to 4 to allow word sized DMA requests
+
+            // Configure controller for flash chip.
             qspi.dcr.write_with_zero(|w| {
                 w.fsize()
                     .bits(FLASH_ADDRESS_SIZE - 1)
@@ -119,139 +161,87 @@ impl ExternalFlash<Uninitialized> {
                     .ckmode()
                     .set_bit()
             });
+
             qspi.cr
                 .write_with_zero(|w| w.prescaler().bits(3).en().set_bit());
         }
 
-        Self {
-            qspi,
-            mode: PhantomData,
-        }
-    }
-
-    /// Turns on the chip and tells it to switch to QPI mode.
-    #[must_use]
-    pub fn init(mut self) -> ExternalFlash<Indirect> {
-        // Reset the chip to default state.
-        self.send_spi_command(Command::EnableReset, None);
-        self.send_spi_command(Command::Reset, None);
-
-        cortex_m::asm::delay(10000);
+        send_spi_command(Command::EnableReset, None);
+        send_spi_command(Command::Reset, None);
 
         // Turn on the chip.
-        self.send_spi_command(Command::ReleaseDeepPowerDown, None);
+        send_spi_command(Command::ReleaseDeepPowerDown, None);
 
-        cortex_m::asm::delay(10000);
-
-        // Enable writing to the chip so that the status register can be changed.
-        self.send_spi_command(Command::WriteEnable, None);
-
-        if self.read_status_register2() & 2 != 2 {
-            // Set QPI to enabled in the chip's status register.
-            self.send_spi_command(Command::WriteStatusRegister2, Some(0x02));
-        }
-
-        // Enable QPI on the chip.
-        self.send_spi_command(Command::EnableQPI, None);
-
-        let mut qpi = ExternalFlash {
-            qspi: self.qspi,
-            mode: PhantomData,
-        };
-
-        qpi.set_read_parameters();
-
-        qpi
-    }
-
-    /// Sends a command with optional data in SPI mode.
-    fn send_spi_command(&mut self, command: Command, data: Option<u8>) {
-        self.qspi.dlr.reset();
-
-        if let Some(data) = data {
-            self.qspi.abr.write(|w| unsafe { w.bits(u32::from(data)) });
-        }
-
-        self.qspi.ccr.write(|w| unsafe {
-            w.fmode()
-                .bits(QspiMode::IndirectWrite as u8)
-                .imode()
-                .bits(QspiWidth::Single as u8)
-                .instruction()
-                .bits(command as u8);
-
-            if data.is_some() {
-                w.abmode()
-                    .bits(QspiWidth::Single as u8)
-                    .absize()
-                    .bits(QspiSize::OneByte as u8);
-            }
-
-            w
-        });
-
-        while self.qspi.sr.read().busy().bit_is_set() {
+        for _ in 0..1000000 {
             asm::nop();
         }
+
+        // Enable writing to the chip so that the status register can be changed.
+        send_spi_command(Command::WriteEnableVolatile, None);
+
+        // Set QPI to enabled in the chip's status register.
+        send_spi_command(Command::WriteStatusRegister2, Some(0x02));
+
+        // Enable QPI on the chip.
+        send_spi_command(Command::EnableQPI, None);
+
+        ExternalFlash { mode: PhantomData }
     }
 }
 
-impl<MODE> ExternalFlash<MODE> {
-    /// Reads the manufacturer and device IDs.
-    ///
-    /// The first value is the manufacturer ID and the second one it the device ID.
-    pub fn read_ids(&mut self) -> (u8, u8) {
-        self.qspi.dlr.write(|w| unsafe { w.dl().bits(2 - 1) });
-        self.qspi.ar.reset();
+fn send_spi_command(command: Command, data: Option<u8>) {
+    let qspi = unsafe { &(*QUADSPI::ptr()) };
+    qspi.dlr.reset();
 
-        // The STM32 doesn't seem to release the QSPI pins early enough, after the
-        // address is transmitted. The short bus contention leads to invalid data on
-        // the rising clock edge. Using a later sampling point fixes this problem.
-        // TODO: can the bus contention be eliminated entirely?
-        self.qspi.cr.modify(|_, w| w.sshift().set_bit());
+    if let Some(data) = data {
+        qspi.abr.write(|w| unsafe { w.bits(u32::from(data)) });
+    }
 
-        self.qspi.ccr.write(|w| unsafe {
-            w.fmode()
-                .bits(QspiMode::IndirectRead as u8)
-                .imode()
-                .bits(QspiWidth::Quad as u8)
-                .admode()
-                .bits(QspiWidth::Quad as u8)
-                .adsize()
-                .bits(QspiSize::ThreeBytes as u8)
-                .dmode()
-                .bits(QspiWidth::Quad as u8)
-                .instruction()
-                .bits(Command::ReadIds as u8)
-        });
+    qspi.ccr.write(|w| unsafe {
+        w.fmode()
+            .bits(QspiMode::IndirectWrite as u8)
+            .imode()
+            .bits(QspiWidth::Single as u8)
+            .instruction()
+            .bits(command as u8);
 
-        self.qspi.ar.reset();
-
-        let data = self.qspi.dr.read().bits();
-
-        while self.qspi.sr.read().busy().bit_is_set() {
-            asm::nop();
+        if data.is_some() {
+            w.abmode()
+                .bits(QspiWidth::Single as u8)
+                .absize()
+                .bits(QspiSize::OneByte as u8);
         }
 
-        self.qspi.cr.modify(|_, w| w.sshift().clear_bit());
+        w
+    });
 
-        (data as u8, (data >> 8) as u8)
+    while qspi.sr.read().busy().bit_is_set() {
+        asm::nop();
     }
+}
 
-    /// Reads status register 1.
-    pub fn read_status_register1(&mut self) -> u8 {
-        self.read_status_register(Command::ReadStatusRegister1)
+fn qpi_command(command: Command) {
+    let qspi = unsafe { &(*QUADSPI::ptr()) };
+    qspi.ccr.write(|w| unsafe {
+        w.fmode()
+            .bits(QspiMode::IndirectWrite as u8)
+            .imode()
+            .bits(QspiWidth::Quad as u8)
+            .instruction()
+            .bits(command as u8)
+    });
+
+    while qspi.sr.read().busy().bit_is_set() {
+        asm::nop();
     }
+}
 
-    /// Reads status register 2.
-    pub fn read_status_register2(&mut self) -> u8 {
-        self.read_status_register(Command::ReadStatusRegister2)
-    }
+fn wait_busy() {
+    while {
+        let qspi = unsafe { &(*QUADSPI::ptr()) };
+        qspi.dlr.write(|w| unsafe { w.dl().bits(1 - 1) });
 
-    fn read_status_register(&mut self, command: Command) -> u8 {
-        self.qspi.dlr.write(|w| unsafe { w.dl().bits(1 - 1) });
-
-        self.qspi.ccr.write(|w| unsafe {
+        qspi.ccr.write(|w| unsafe {
             w.fmode()
                 .bits(QspiMode::IndirectRead as u8)
                 .imode()
@@ -259,25 +249,31 @@ impl<MODE> ExternalFlash<MODE> {
                 .dmode()
                 .bits(QspiWidth::Quad as u8)
                 .instruction()
-                .bits(command as u8)
+                .bits(Command::ReadStatusRegister1 as u8)
         });
 
-        let data = self.qspi.dr.read().bits();
+        let data = qspi.dr.read().bits();
 
-        while self.qspi.sr.read().busy().bit_is_set() {
+        while qspi.sr.read().busy().bit_is_set() {
             asm::nop();
         }
 
         data as u8
+    } & 0x01
+        != 0
+    {
+        asm::nop();
     }
 }
 
 impl ExternalFlash<Indirect> {
     /// Reads a byte.
     pub fn read_byte(&mut self, address: u32) -> u8 {
-        self.qspi.dlr.write(|w| unsafe { w.dl().bits(1 - 1) });
+        let qspi = unsafe { &(*QUADSPI::ptr()) };
 
-        self.qspi.ccr.write(|w| unsafe {
+        qspi.dlr.write(|w| unsafe { w.dl().bits(1 - 1) });
+
+        qspi.ccr.write(|w| unsafe {
             w.fmode()
                 .bits(QspiMode::IndirectRead as u8)
                 .imode()
@@ -294,11 +290,11 @@ impl ExternalFlash<Indirect> {
                 .bits(Command::FastRead as u8)
         });
 
-        self.qspi.ar.write(|w| unsafe { w.bits(address) });
+        qspi.ar.write(|w| unsafe { w.bits(address) });
 
-        let data = self.qspi.dr.read().bits();
+        let data = qspi.dr.read().bits();
 
-        while self.qspi.sr.read().busy().bit_is_set() {
+        while qspi.sr.read().busy().bit_is_set() {
             asm::nop();
         }
 
@@ -314,65 +310,109 @@ impl ExternalFlash<Indirect> {
         num
     }
 
-    /// Programs a page.
-    pub fn program_page(&mut self, address: u32, data: &[u8]) {
+    pub fn erase_all(&mut self) {
+        qpi_command(Command::WriteEnable);
+        qpi_command(Command::ChipErase);
+
+        wait_busy();
+    }
+
+    pub fn erase_sector(&mut self, addr: u32) {
+        qpi_command(Command::WriteEnable);
+
+        let qspi = unsafe { &(*QUADSPI::ptr()) };
+
+        qspi.abr.write(|w| unsafe { w.bits(addr) });
+
+        // TODO: Why doesn't this work with address bytes?
+        qspi.ccr.write(|w| unsafe {
+            w.fmode()
+                .bits(QspiMode::IndirectWrite as u8)
+                .imode()
+                .bits(QspiWidth::Quad as u8)
+                .abmode()
+                .bits(QspiWidth::Quad as u8)
+                .absize()
+                .bits(QspiSize::ThreeBytes as u8)
+                // .admode()
+                // .bits(QspiWidth::Quad as u8)
+                // .adsize()
+                // .bits(QspiSize::ThreeBytes as u8)
+                .instruction()
+                .bits(Command::Erase64KbyteBlock as u8)
+        });
+
+        // qspi.ar.write(|w| unsafe { w.bits(addr) });
+
+        while qspi.sr.read().busy().bit_is_set() {
+            asm::nop();
+        }
+
+        wait_busy();
+    }
+
+    pub fn program_page(&mut self, addr: u32, data: &[u8]) {
+        qpi_command(Command::WriteEnable);
+        let qspi = unsafe { &(*QUADSPI::ptr()) };
         assert!(!data.is_empty());
 
-        self.qspi
-            .dlr
+        qspi.dlr
             .write(|w| unsafe { w.dl().bits(data.len() as u32 - 1) });
 
-        self.qspi.ccr.write(|w| unsafe {
+        qspi.abr.write(|w| unsafe { w.bits(addr) });
+
+        // TODO: Why doesn't this work with address bytes?
+        qspi.ccr.write(|w| unsafe {
             w.fmode()
                 .bits(QspiMode::IndirectWrite as u8)
                 .imode()
                 .bits(QspiWidth::Quad as u8)
                 .dmode()
                 .bits(QspiWidth::Quad as u8)
-                .admode()
+                .abmode()
                 .bits(QspiWidth::Quad as u8)
-                .adsize()
+                .absize()
                 .bits(QspiSize::ThreeBytes as u8)
+                // .admode()
+                // .bits(QspiWidth::Quad as u8)
+                // .adsize()
+                // .bits(QspiSize::ThreeBytes as u8)
                 .instruction()
                 .bits(Command::PageProgram as u8)
         });
 
-        self.qspi.ar.write(|w| unsafe { w.bits(address) });
+        //qspi.ar.write(|w| unsafe { w.bits(addr) });
 
         for byte in data {
-            // while self.qspi.sr.read().ftf().bit_is_clear() {
-            //     asm::nop();
-            // }
+            while qspi.sr.read().ftf().bit_is_clear() {
+                asm::nop();
+            }
             unsafe {
-                core::ptr::write_volatile(&self.qspi.dr as *const _ as *mut u8, *byte);
+                core::ptr::write_volatile(&qspi.dr as *const _ as *mut u8, *byte);
             }
         }
 
-        while self.qspi.sr.read().busy().bit_is_set() {
+        while qspi.sr.read().busy().bit_is_set() {
             asm::nop();
         }
 
-        self.wait_busy();
+        wait_busy();
     }
 
     /// Enables writing.
     pub fn write_enable(&mut self) {
-        self.command(Command::WriteEnable);
+        qpi_command(Command::WriteEnable);
     }
 
     /// Disables writing.
     pub fn write_disable(&mut self) {
-        self.command(Command::WriteEnable);
-    }
-
-    /// Erases the chip.
-    pub fn chip_erase(&mut self) {
-        self.command(Command::ChipErase);
-        self.wait_busy();
+        qpi_command(Command::WriteEnable);
     }
 
     pub fn block_erase_4k(&mut self, address: u32) {
-        self.qspi.ccr.write(|w| unsafe {
+        let qspi = unsafe { &(*QUADSPI::ptr()) };
+
+        qspi.ccr.write(|w| unsafe {
             w.fmode()
                 .bits(QspiMode::IndirectWrite as u8)
                 .imode()
@@ -385,61 +425,19 @@ impl ExternalFlash<Indirect> {
                 .bits(Command::Erase4KbyteBlock as u8)
         });
 
-        self.qspi.ar.write(|w| unsafe { w.bits(address) });
+        qspi.ar.write(|w| unsafe { w.bits(address) });
 
-        while self.qspi.sr.read().busy().bit_is_set() {
+        while qspi.sr.read().busy().bit_is_set() {
             asm::nop();
         }
 
-        self.wait_busy();
-    }
-
-    fn command(&mut self, command: Command) {
-        self.qspi.ccr.write(|w| unsafe {
-            w.fmode()
-                .bits(QspiMode::IndirectWrite as u8)
-                .imode()
-                .bits(QspiWidth::Quad as u8)
-                .instruction()
-                .bits(command as u8)
-        });
-
-        while self.qspi.sr.read().busy().bit_is_set() {
-            asm::nop();
-        }
-    }
-
-    /// Waits until the busy flag is cleared.
-    fn wait_busy(&mut self) {
-        while self.read_status_register1() & 0x01 != 0 {
-            asm::nop();
-        }
-    }
-
-    fn set_read_parameters(&mut self) {
-        // 104Mhz -> 6 dummy clocks, 8-byte wrap
-        self.qspi.abr.write(|w| unsafe { w.bits(0b0010_0000) });
-
-        self.qspi.ccr.write(|w| unsafe {
-            w.fmode()
-                .bits(QspiMode::IndirectWrite as u8)
-                .imode()
-                .bits(QspiWidth::Quad as u8)
-                .abmode()
-                .bits(QspiWidth::Quad as u8)
-                .absize()
-                .bits(QspiSize::OneByte as u8)
-                .instruction()
-                .bits(Command::SetReadParameters as u8)
-        });
-
-        while self.qspi.sr.read().busy().bit_is_set() {
-            asm::nop();
-        }
+        wait_busy();
     }
 
     pub fn into_memory_mapped(self) -> ExternalFlash<MemoryMapped> {
-        self.qspi.ccr.write(|w| unsafe {
+        let qspi = unsafe { &(*QUADSPI::ptr()) };
+
+        qspi.ccr.write(|w| unsafe {
             w.fmode()
                 .bits(QspiMode::MemoryMapped as u8)
                 .dmode()
@@ -458,9 +456,6 @@ impl ExternalFlash<Indirect> {
                 .set_bit()
         });
 
-        ExternalFlash {
-            qspi: self.qspi,
-            mode: PhantomData,
-        }
+        ExternalFlash { mode: PhantomData }
     }
 }

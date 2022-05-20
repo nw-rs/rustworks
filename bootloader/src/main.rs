@@ -44,10 +44,7 @@ fn main() -> ! {
 
     init_mpu();
 
-    let mut external_flash = get_external_flash().init();
-
-    rprintln!("status 1: {:08b}", external_flash.read_status_register1());
-    rprintln!("status 2: {:08b}", external_flash.read_status_register2());
+    let mut external_flash = get_external_flash();
 
     rprintln!("indirect +0: {:08x}", external_flash.read_u32(0));
     rprintln!("indirect +4: {:08x}", external_flash.read_u32(4));
@@ -62,15 +59,17 @@ fn main() -> ! {
         (0x90000004u32 as *const u32).read_volatile()
     });
 
-    for i in 0..1000 {
+    for i in 1..1000 {
         unsafe {
             ((0x90000000u32 + (i * 4321 % 0x800000u32)) as *const u8).read_volatile();
         }
     }
 
-    rprintln!("+0 after: {:08x}", unsafe {
-        (0x90000000u32 as *const u32).read_volatile()
-    });
+    // cortex_m::asm::delay(100000);
+
+    // rprintln!("+0 after: {:08x}", unsafe {
+    //     (0x90000000u32 as *const u32).read_volatile()
+    // });
 
     rprintln!("+4 after: {:08x}", unsafe {
         (0x90000004u32 as *const u32).read_volatile()

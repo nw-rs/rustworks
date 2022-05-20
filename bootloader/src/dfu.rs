@@ -81,7 +81,7 @@ impl DFUMemIO for QspiDfu {
     }
 
     fn erase_all(&mut self) -> Result<(), usbd_dfu::DFUMemError> {
-        self.flash.chip_erase();
+        self.flash.erase_all();
         Ok(())
     }
 

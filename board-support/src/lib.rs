@@ -2,12 +2,12 @@
 
 use cortex_m::peripheral::MPU;
 use display::Display;
-use external_flash::{ExternalFlash, Uninitialized};
+use external_flash::{ExternalFlash, Indirect};
 use hal::{
     fmc_lcd::{ChipSelect1, LcdPins},
     gpio::{
         gpiob::{PB0, PB4, PB5},
-        GpioExt, Output, PushPull, Speed,
+        GpioExt, Output, PushPull,
     },
     pac,
     rcc::Clocks, otg_fs::UsbBus, flash::Flash, timer::SysTimerExt,
@@ -35,24 +35,8 @@ pub fn get_internal_flash() -> Flash {
     Flash::new(dp.FLASH)
 }
 
-pub fn get_external_flash() -> ExternalFlash<Uninitialized> {
-    let dp = unsafe { pac::Peripherals::steal() };
-
-    let gpiob = dp.GPIOB.split();
-    let gpioc = dp.GPIOC.split();
-    let gpiod = dp.GPIOD.split();
-    let gpioe = dp.GPIOE.split();
-
-    let qspi_pins = (
-        gpiob.pb2.into_alternate().set_speed(Speed::VeryHigh),
-        gpiob.pb6.into_alternate().set_speed(Speed::VeryHigh),
-        gpioc.pc9.into_alternate().set_speed(Speed::VeryHigh),
-        gpiod.pd12.into_alternate().set_speed(Speed::VeryHigh),
-        gpiod.pd13.into_alternate().set_speed(Speed::VeryHigh),
-        gpioe.pe2.into_alternate().set_speed(Speed::VeryHigh),
-    );
-
-    ExternalFlash::new(dp.QUADSPI, qspi_pins)
+pub fn get_external_flash() -> ExternalFlash<Indirect> {
+    ExternalFlash::init()
 }
 
 /// Init MPU before doing this.
