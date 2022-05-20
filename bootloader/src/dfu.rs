@@ -86,6 +86,6 @@ impl DFUMemIO for QspiDfu {
     }
 
     fn manifestation(&mut self) -> Result<(), usbd_dfu::DFUManifestationError> {
-        cortex_m::peripheral::SCB::sys_reset();
+        loop {}
     }
 }

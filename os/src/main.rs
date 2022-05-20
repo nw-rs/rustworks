@@ -25,18 +25,18 @@ fn main() -> ! {
     let mut led = get_led();
     led.blue();
 
-    let mut dp = hal::pac::Peripherals::take().unwrap();
-    let mut cp = cortex_m::Peripherals::take().unwrap();
+    let dp = hal::pac::Peripherals::take().unwrap();
+    let cp = cortex_m::Peripherals::take().unwrap();
 
-    init_mpu(&mut cp.MPU);
+    init_mpu();
 
-    let clocks = init_clocks(dp.RCC, &mut dp.PWR, &mut dp.FLASH);
+    let clocks = init_clocks(dp.RCC);
 
     let mut display = get_display(&clocks);
 
     display.write_top("Booted OS.");
     display.draw_all();
-    
+
     let mut delay = cp.SYST.delay(&clocks);
 
     let mut led = get_led();

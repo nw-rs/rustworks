@@ -1,5 +1,6 @@
 #![no_std]
 
+use cortex_m::peripheral::MPU;
 use display::Display;
 use external_flash::{ExternalFlash, Uninitialized};
 use hal::{
@@ -35,7 +36,7 @@ pub fn get_internal_flash() -> Flash {
 }
 
 pub fn get_external_flash() -> ExternalFlash<Uninitialized> {
-    let mut dp = unsafe { pac::Peripherals::steal() };
+    let dp = unsafe { pac::Peripherals::steal() };
 
     let gpiob = dp.GPIOB.split();
     let gpioc = dp.GPIOC.split();
@@ -51,7 +52,7 @@ pub fn get_external_flash() -> ExternalFlash<Uninitialized> {
         gpioe.pe2.into_alternate().set_speed(Speed::VeryHigh),
     );
 
-    ExternalFlash::new(&mut dp.RCC, dp.QUADSPI, qspi_pins)
+    ExternalFlash::new(dp.QUADSPI, qspi_pins)
 }
 
 /// Init MPU before doing this.
@@ -149,13 +150,15 @@ pub fn get_usb_bus_allocator(clocks: &Clocks, ep_memory: &'static mut [u32]) -> 
     UsbBus::new(usb, ep_memory)
 }
 
-pub fn init_mpu(mpu: &mut cortex_m::peripheral::MPU) {
+pub fn init_mpu() {
     unsafe {
         const FULL_ACCESS: u32 = 0b011 << 24;
         const SIZE_512MB: u32 = 28 << 1;
         const SIZE_8MB: u32 = 22 << 1;
         const DEVICE_SHARED: u32 = 0b000001 << 16;
         const NORMAL_SHARED: u32 = 0b000110 << 16;
+
+        let mpu = &*MPU::ptr();
 
         // Flash
         mpu.rnr.write(0);

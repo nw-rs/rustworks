@@ -93,7 +93,6 @@ pub struct ExternalFlash<MODE> {
 
 impl ExternalFlash<Uninitialized> {
     pub fn new(
-        rcc: &mut RCC,
         qspi: QUADSPI,
         _pins: (
             PB2<Alternate<9>>,
@@ -104,12 +103,14 @@ impl ExternalFlash<Uninitialized> {
             PE2<Alternate<9>>,
         ),
     ) -> Self {
-        rcc.ahb3enr.modify(|_, w| w.qspien().set_bit());
         // Single flash mode with a QSPI clock prescaler of 2 (216 / 2 = 108 MHz), FIFO
         // threshold only matters for DMA and is set to 4 to allow word sized DMA requests
 
         // Configure controller for flash chip.
         unsafe {
+            let rcc = &*RCC::ptr();
+            rcc.ahb3enr.modify(|_, w| w.qspien().set_bit());
+
             qspi.dcr.write_with_zero(|w| {
                 w.fsize()
                     .bits(FLASH_ADDRESS_SIZE - 1)
@@ -131,14 +132,24 @@ impl ExternalFlash<Uninitialized> {
     /// Turns on the chip and tells it to switch to QPI mode.
     #[must_use]
     pub fn init(mut self) -> ExternalFlash<Indirect> {
+        // Reset the chip to default state.
+        self.send_spi_command(Command::EnableReset, None);
+        self.send_spi_command(Command::Reset, None);
+
+        cortex_m::asm::delay(10000);
+
         // Turn on the chip.
         self.send_spi_command(Command::ReleaseDeepPowerDown, None);
 
-        // Enable writing to the chip so that the status register can be changed.
-        self.send_spi_command(Command::WriteEnableVolatile, None);
+        cortex_m::asm::delay(10000);
 
-        // Set QPI to enabled in the chip's status register.
-        self.send_spi_command(Command::WriteStatusRegister2, Some(0x02));
+        // Enable writing to the chip so that the status register can be changed.
+        self.send_spi_command(Command::WriteEnable, None);
+
+        if self.read_status_register2() & 2 != 2 {
+            // Set QPI to enabled in the chip's status register.
+            self.send_spi_command(Command::WriteStatusRegister2, Some(0x02));
+        }
 
         // Enable QPI on the chip.
         self.send_spi_command(Command::EnableQPI, None);
@@ -185,7 +196,7 @@ impl ExternalFlash<Uninitialized> {
     }
 }
 
-impl ExternalFlash<Indirect> {
+impl<MODE> ExternalFlash<MODE> {
     /// Reads the manufacturer and device IDs.
     ///
     /// The first value is the manufacturer ID and the second one it the device ID.
@@ -259,7 +270,9 @@ impl ExternalFlash<Indirect> {
 
         data as u8
     }
+}
 
+impl ExternalFlash<Indirect> {
     /// Reads a byte.
     pub fn read_byte(&mut self, address: u32) -> u8 {
         self.qspi.dlr.write(|w| unsafe { w.dl().bits(1 - 1) });
@@ -290,6 +303,15 @@ impl ExternalFlash<Indirect> {
         }
 
         data as u8
+    }
+
+    /// Reads a u32
+    pub fn read_u32(&mut self, address: u32) -> u32 {
+        let mut num = 0u32;
+        for i in 0..4 {
+            num |= (self.read_byte(address + i) as u32) << i * 8;
+        }
+        num
     }
 
     /// Programs a page.

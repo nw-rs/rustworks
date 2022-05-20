@@ -14,7 +14,7 @@ pub const SSCG_MODPER: u16 = 250;
 
 pub const SSCG_INCSTEP: u16 = 25;
 
-pub fn init_clocks(rcc: RCC, pwr: &mut PWR, flash: &mut FLASH) -> Clocks {
+pub fn init_clocks(rcc: RCC) -> Clocks {
     /* System clock
      * Configure the CPU at 192 MHz and USB at 48 MHz. */
 
@@ -61,6 +61,8 @@ pub fn init_clocks(rcc: RCC, pwr: &mut PWR, flash: &mut FLASH) -> Clocks {
 
         rcc.cr.modify(|r, w| w.bits(r.bits()).pllon().set_bit());
 
+        let pwr = &*PWR::ptr();
+
         pwr.cr1.modify(|r, w| w.bits(r.bits()).oden().set_bit());
         while !pwr.csr1.read().odrdy().bit_is_set() {}
 
@@ -69,6 +71,8 @@ pub fn init_clocks(rcc: RCC, pwr: &mut PWR, flash: &mut FLASH) -> Clocks {
 
         pwr.cr1.modify(|r, w| w.bits(r.bits()).vos().scale1());
         while !pwr.csr1.read().vosrdy().bit_is_set() {}
+
+        let flash = &*FLASH::ptr();
 
         flash.acr.modify(|r, w| {
             w.bits(r.bits())
