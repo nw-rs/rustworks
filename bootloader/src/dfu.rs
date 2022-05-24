@@ -2,17 +2,15 @@ use usbd_dfu::DFUMemIO;
 
 use heapless::Vec;
 
-use crate::external_flash::{ExternalFlash, Indirect};
+use nw_board_support::external_flash;
 
 pub struct QspiDfu {
-    flash: ExternalFlash<Indirect>,
-    buffer: Vec<u8, { Self::TRANSFER_SIZE as usize }>,
+    buffer: Vec<u8, { Self::TRANSFER_SIZE as usize * 8 }>,
 }
 
 impl QspiDfu {
-    pub fn new(flash: ExternalFlash<Indirect>) -> Self {
+    pub fn new() -> Self {
         QspiDfu {
-            flash,
             buffer: Vec::new(),
         }
     }
@@ -53,35 +51,25 @@ impl DFUMemIO for QspiDfu {
 
     fn read(&mut self, address: u32, length: usize) -> Result<&[u8], usbd_dfu::DFUMemError> {
         self.buffer.clear();
-        self.flash.write_disable();
-        for i in 0..(length as u32) {
-            let byte = self
-                .flash
-                .read_byte(address - Self::INITIAL_ADDRESS_POINTER + i);
-            if let Err(_) = self.buffer.push(byte) {
-                return Err(usbd_dfu::DFUMemError::ErrVendor);
-            }
-        }
-        let result = &self.buffer.as_slice()[0..length];
-        Ok(result)
+
+        Ok(unsafe { core::slice::from_raw_parts(address as *const u8, length) })
     }
 
     fn program(&mut self, address: u32, length: usize) -> Result<(), usbd_dfu::DFUMemError> {
         let slice = &self.buffer.as_slice()[0..length];
-        self.flash.write_enable();
-        self.flash
-            .program_page(address - Self::INITIAL_ADDRESS_POINTER, slice);
+
+        external_flash::write_memory(address, slice);
+
         Ok(())
     }
 
     fn erase(&mut self, address: u32) -> Result<(), usbd_dfu::DFUMemError> {
-        self.flash
-            .block_erase_4k(address - Self::INITIAL_ADDRESS_POINTER);
+        external_flash::erase_sector(external_flash::sector_at_address(address));
         Ok(())
     }
 
     fn erase_all(&mut self) -> Result<(), usbd_dfu::DFUMemError> {
-        self.flash.erase_all();
+        external_flash::erase_all();
         Ok(())
     }
 

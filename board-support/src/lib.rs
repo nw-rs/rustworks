@@ -2,7 +2,6 @@
 
 use cortex_m::peripheral::MPU;
 use display::Display;
-use external_flash::{ExternalFlash, Indirect};
 use hal::{
     fmc_lcd::{ChipSelect1, LcdPins},
     gpio::{
@@ -33,10 +32,6 @@ pub fn get_internal_flash() -> Flash {
     let dp = unsafe { pac::Peripherals::steal() };
 
     Flash::new(dp.FLASH)
-}
-
-pub fn get_external_flash() -> ExternalFlash<Indirect> {
-    ExternalFlash::init()
 }
 
 /// Init MPU before doing this.
