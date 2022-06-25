@@ -20,5 +20,5 @@ show_timestamps = true
 
 [default.gdb] 
 enabled = true
-gdb_connection_string = "localhost:1338"
+gdb_connection_string = "localhost:1337"
 

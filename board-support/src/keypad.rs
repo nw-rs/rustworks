@@ -1,16 +1,12 @@
 use embedded_hal::blocking::delay::DelayUs;
-use heapless::Vec;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use stm32f7xx_hal::gpio::gpioa::{PA, PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PA8};
-use stm32f7xx_hal::gpio::{Input, OpenDrain, Output, PullUp};
-use stm32f7xx_hal::{
-    gpio::{
-        gpioc::{PC0, PC1, PC2, PC3, PC4, PC5},
-        Floating,
-    },
-    prelude::OutputPin,
+use stm32f7xx_hal::gpio::gpioa::{PAn, PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7, PA8};
+use stm32f7xx_hal::gpio::{
+    gpioc::{PC0, PC1, PC2, PC3, PC4, PC5},
+    Floating,
 };
+use stm32f7xx_hal::gpio::{Input, OpenDrain, Output, PullUp};
 
 pub struct KeyPad {
     alpha_lock: bool,
@@ -27,7 +23,7 @@ impl KeyPad {
         }
     }
 
-    pub fn read(&mut self, delay: &mut impl DelayUs<u32>) -> Vec<Key, 46> {
+    pub fn read(&mut self, delay: &mut impl DelayUs<u32>) -> [Key; 46] {
         let state = self.matrix.scan(delay);
         let sum: u16 = state.iter().map(|s| *s as u16).sum();
         let switches = state_to_switches(state);
@@ -42,7 +38,13 @@ impl KeyPad {
         } else {
             |sw: &Switch| sw.to_key()
         };
-        let keys: Vec<Key, 46> = switches.iter().map(switch_to_key).collect();
+        let iter = switches.iter().map(switch_to_key);
+        let mut keys: [Key; 46] = [Key::NONE; 46];
+        let mut index = 0;
+        iter.for_each(|k| {
+            keys[index] = k;
+            index += 1;
+        });
         if sum != self.last_state {
             self.last_state = sum;
             if keys.contains(&Key::AlphaLock) {
@@ -102,6 +104,7 @@ pub enum Switch {
     R8C3 = 0x83,
     R8C4 = 0x84,
     R8C5 = 0x85,
+    NONE = 0xff,
 }
 
 impl Switch {
@@ -153,6 +156,7 @@ impl Switch {
             Self::R8C3 => Key::EE,
             Self::R8C4 => Key::Ans,
             Self::R8C5 => Key::EXE,
+            Self::NONE => Key::NONE,
         }
     }
     pub fn to_key_shift(&self) -> Key {
@@ -322,6 +326,7 @@ pub enum Key {
     Space,
     Question,
     Exclamation,
+    NONE,
 }
 
 impl From<Key> for char {
@@ -414,7 +419,7 @@ impl KeyColumns {
 }
 
 pub struct KeyMatrix {
-    rows: [PA<Output<OpenDrain>>; 9],
+    rows: [PAn<Output<OpenDrain>>; 9],
     columns: KeyColumns,
 }
 
@@ -448,26 +453,26 @@ impl KeyMatrix {
         let mut r7 = pa7.into_open_drain_output();
         let mut r8 = pa8.into_open_drain_output();
 
-        r0.set_high().unwrap();
-        r1.set_high().unwrap();
-        r2.set_high().unwrap();
-        r3.set_high().unwrap();
-        r4.set_high().unwrap();
-        r5.set_high().unwrap();
-        r6.set_high().unwrap();
-        r7.set_high().unwrap();
-        r8.set_high().unwrap();
+        r0.set_high();
+        r1.set_high();
+        r2.set_high();
+        r3.set_high();
+        r4.set_high();
+        r5.set_high();
+        r6.set_high();
+        r7.set_high();
+        r8.set_high();
 
         let rows = [
-            r0.downgrade(),
-            r1.downgrade(),
-            r2.downgrade(),
-            r3.downgrade(),
-            r4.downgrade(),
-            r5.downgrade(),
-            r6.downgrade(),
-            r7.downgrade(),
-            r8.downgrade(),
+            r0.erase_number(),
+            r1.erase_number(),
+            r2.erase_number(),
+            r3.erase_number(),
+            r4.erase_number(),
+            r5.erase_number(),
+            r6.erase_number(),
+            r7.erase_number(),
+            r8.erase_number(),
         ];
 
         let columns = KeyColumns(
@@ -489,23 +494,25 @@ impl KeyMatrix {
         ];
 
         for (row_pin, row_state) in self.rows.iter_mut().zip(&mut state) {
-            row_pin.set_low().unwrap();
+            row_pin.set_low();
             delay.delay_us(10);
             *row_state &= !self.columns.read();
-            row_pin.set_high().unwrap();
+            row_pin.set_high();
         }
 
         state
     }
 }
 
-fn state_to_switches(state: [u8; 9]) -> Vec<Switch, 46> {
-    let mut keys = Vec::new();
+fn state_to_switches(state: [u8; 9]) -> [Switch; 46] {
+    let mut keys = [Switch::NONE; 46];
+    let mut index = 0;
     for (n, row) in state.iter().enumerate() {
         let start = 0x10 * n as u8;
         for col in [1u8, 2, 4, 8, 16, 32].iter() {
             if let Some(key) = col_to_key(start, *row, *col) {
-                keys.push(key).unwrap();
+                keys[index] = key;
+                index += 1;
             }
         }
     }
