@@ -1,0 +1,6 @@
+[submodule "board-support"]
+	path = board-support
+	url = git@github.com:nw-rs/board-support.git
+[submodule "bootloader"]
+	path = bootloader
+	url = git@github.com:nw-rs/bootloader.git
