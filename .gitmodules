@@ -4,3 +4,6 @@
 [submodule "bootloader"]
 	path = bootloader
 	url = git@github.com:nw-rs/bootloader.git
+[submodule "os"]
+	path = os
+	url = git@github.com:nw-rs/os.git
