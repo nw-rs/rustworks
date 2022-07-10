@@ -1,9 +1,9 @@
 [submodule "board-support"]
 	path = board-support
-	url = git@github.com:nw-rs/board-support.git
+	url = https://github.com/nw-rs/board-support.git
 [submodule "bootloader"]
 	path = bootloader
-	url = git@github.com:nw-rs/bootloader.git
+	url = https://github.com/nw-rs/bootloader.git
 [submodule "os"]
 	path = os
-	url = git@github.com:nw-rs/os.git
+	url = https://github.com/nw-rs/os.git

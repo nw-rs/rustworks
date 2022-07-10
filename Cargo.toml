@@ -24,3 +24,6 @@ debug = true
 panic = "abort"
 opt-level = "z"
 lto = true
+
+[patch.'https://github.com/nw-rs/board-support.git']
+nw-board-support = { path = "./board-support" }

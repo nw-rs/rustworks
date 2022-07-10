@@ -1,7 +1,5 @@
 # RustWorks
 
-Pour une version française de ce README allez a [README-FR.md](README-FR.md).
-
 An OS (eventually) for the Numworks calculator (model n0110).
 
 ## Setup
@@ -29,6 +27,12 @@ cargo install cargo-make
 cargo install probe-run
 cargo install cargo-embed
 cargo install cargo-flash
+
+# Clone the repo (recursively to get submodules)
+git clone --recursive https://github.com/nw-rs/rustworks.git
+
+# If you cloned the repo before reading this and did not do so recursively do the following in the repo dir
+git submodule update --init --recursive
 ```
 
 ## DFU Flash
