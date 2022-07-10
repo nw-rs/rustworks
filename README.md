@@ -2,7 +2,7 @@
 
 Pour une version française de ce README allez a [README-FR.md](README-FR.md).
 
-An OS (eventually) for the Numworks calculator (model n0110).
+An OS (potentially) for the Numworks calculator (model n0110).
 
 ## Setup
 
