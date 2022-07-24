@@ -1,0 +1,14 @@
+# Dependabot for cargo
+
+version: 2
+updates:
+  # Enable version updates for cargo
+  - package-ecosystem: "cargo"
+    # Look for 'Cargo' files in the `root` directory
+    directory: "/"
+    # Check for updates daily
+    schedule:
+      interval: "daily"
+    reviewers:
+      - "willemml"
+      - "MixedMatched"
