@@ -1,3 +1,7 @@
+<div align="center">
+  ![Matrix](https://img.shields.io/matrix/rustworks:matrix.org?style=flat-square)
+</div>
+
 # RustWorks
 
 An operating system and bootloader for the Numworks calculator (model n0110).
@@ -16,3 +20,6 @@ everything must be flashed individually, please read the readme of the
 submodule you are interested in for more information on flashing or
 using it.
 
+## Contact
+
+The best way to contact us is to use the Matrix room, click [here](https://matrix.to/#/#rustworks:matrix.org) to join.
