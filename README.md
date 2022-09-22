@@ -16,3 +16,10 @@ everything must be flashed individually, please read the readme of the
 submodule you are interested in for more information on flashing or
 using it.
 
+## Roadmap
+
+- [ ] external flash drivers
+- [ ]cas
+- [ ] basic algebra repl
+- [ ] UI to switch between "programs"
+- [ ] support for 3rd party apps separate from firmware
