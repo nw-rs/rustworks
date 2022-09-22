@@ -23,5 +23,3 @@ using it.
 - [ ] REPL on the calculator to demonstrate the CAS
 - [ ] Multiple programs/apps with UI to choose one on boot
 - [ ] Support for 3rd party apps and binaries
-
-*The following listings aren't ordered by priority.*
