@@ -16,3 +16,10 @@ everything must be flashed individually, please read the readme of the
 submodule you are interested in for more information on flashing or
 using it.
 
+## Roadmap
+
+- [ ] Drivers for the External flash chip (read, write, XiP)
+- [ ] Finish CAS (rCAS)
+- [ ] REPL on the calculator to demonstrate the CAS
+- [ ] Multiple programs/apps with UI to choose one on boot
+- [ ] Support for 3rd party apps and binaries
