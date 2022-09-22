@@ -19,7 +19,7 @@ using it.
 ## Roadmap
 
 - [ ] external flash drivers
-- [ ]cas
+- [ ] cas
 - [ ] basic algebra repl
 - [ ] UI to switch between "programs"
 - [ ] support for 3rd party apps separate from firmware
