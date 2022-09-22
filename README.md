@@ -1,5 +1,5 @@
 <div align="center">
-  ![Matrix](https://img.shields.io/matrix/rustworks:matrix.org?style=flat-square)
+  <img alt="Matrix" src="https://img.shields.io/matrix/rustworks:matrix.org?style=flat-square">
 </div>
 
 # RustWorks
