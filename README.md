@@ -18,7 +18,7 @@ using it.
 
 ## 🚧 Roadmap 🚧
 
-- [ ] Drivers for the External flash chip (read, write, XiP) *(highest priority)*
+- [ ] Drivers for the External flash chip (read, write, XiP) **(highest priority)**
 - [ ] Finish CAS (rCAS)
 - [ ] REPL on the calculator to demonstrate the CAS
 - [ ] Multiple programs/apps with UI to choose one on boot
