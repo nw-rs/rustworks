@@ -40,3 +40,15 @@ using it.
 - [ ] REPL on the calculator to demonstrate the CAS
 - [ ] Multiple programs/apps with UI to choose one on boot
 - [ ] Support for 3rd party apps and binaries
+
+## ❤️ Contributing ❤️
+
+Contributions are extremely valued, specially now, since the lead developer (@willemml) has little time to work on this project.
+
+If you would like to contribute, please, fork the repo and open a Pull Request (PR).
+
+**Thank you!**
+
+## ⚖️ Licensing ⚖️
+
+The code in this project is licensed under the MIT license.
