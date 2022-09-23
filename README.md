@@ -7,6 +7,7 @@
 <div align="center">
   
 [![GitHub issues](https://img.shields.io/github/issues/nw-rs/rustworks?style=flat-square)](https://github.com/nw-rs/rustworks/issues)
+![GitHub pull requests](https://img.shields.io/github/issues-pr/nw-rs/rustworks?style=flat-square)
 [![GitHub forks](https://img.shields.io/github/forks/nw-rs/rustworks?style=flat-square)](https://github.com/nw-rs/rustworks/network)
 [![GitHub stars](https://img.shields.io/github/stars/nw-rs/rustworks?style=flat-square)](https://github.com/nw-rs/rustworks/stargazers)
 [![GitHub license](https://img.shields.io/github/license/nw-rs/rustworks?style=flat-square)](https://github.com/nw-rs/rustworks/blob/master/LICENSE)  
