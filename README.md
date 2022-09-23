@@ -1,12 +1,16 @@
 <div align="center">
+  
 # RustWorks
+  
 </div>
 
 <div align="center">
+  
 [![GitHub issues](https://img.shields.io/github/issues/nw-rs/rustworks?style=flat-square)](https://github.com/nw-rs/rustworks/issues)
 [![GitHub forks](https://img.shields.io/github/forks/nw-rs/rustworks?style=flat-square)](https://github.com/nw-rs/rustworks/network)
 [![GitHub stars](https://img.shields.io/github/stars/nw-rs/rustworks?style=flat-square)](https://github.com/nw-rs/rustworks/stargazers)
 [![GitHub license](https://img.shields.io/github/license/nw-rs/rustworks?style=flat-square)](https://github.com/nw-rs/rustworks/blob/master/LICENSE)  
+  
 </div>
 
 An operating system and bootloader for the Numworks calculator (model n0110).
