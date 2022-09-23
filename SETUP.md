@@ -17,7 +17,7 @@ install it using a package manager or download the binaries directly from the
 it to your path.
 
 Use the following instructions to use your operating system's package manager
-or if your OS isn't listed use the built in search function to find it
+or if your OS isn't listed use the built in search function to find it.
 
 ### Debian based
 
@@ -37,8 +37,8 @@ brew install arm-gcc-bin
 ## Install dfu-util
 
 If you don't have an STLink probe you will need to flash the calculator using
-DFU (you still need this to test your changes even if you have an STLink).
-You can either get this by following the instructions on
+DFU (you'll still need this to test your changes even if you have an STLink).
+You can get this by following the instructions on
 [the dfu-util homepage](http://dfu-util.sourceforge.net/).
 
 ## Install cargo tools
