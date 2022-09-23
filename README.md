@@ -1,7 +1,8 @@
 <div align="center">
   
 # RustWorks
-  
+
+  <i>Creating a truly free operating system for calculators</i>  
 </div>
 
 <div align="center">
