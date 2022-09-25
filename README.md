@@ -2,7 +2,7 @@
   
 # RustWorks
 
-  <i>Creating a truly free operating system for calculators</i>  
+  <i>Creating a truly free operating system for calculators.</i>  
 </div>
 
 <div align="center">
@@ -18,7 +18,7 @@
   
 </div>
 
-An operating system and bootloader for the Numworks calculator (model n0110).
+An operating system and bootloader for the NumWorks calculator (model n0110).
 
 ## Setup
 
@@ -49,6 +49,14 @@ Contributions are extremely valued, specially now, since the lead developer (@wi
 If you would like to contribute, please, fork the repo and open a Pull Request (PR).
 
 **Thank you!**
+
+## ⚙️ Components ⚙️
+
+RustWorks is composed of several components which are listed here:
+- [rcas](https://github.com/nw-rs/rcas) Open source computer algebra system
+- [board-support](https://github.com/nw-rs/board-support) Files for compatibility with NumWorks n0110 hardware
+- [bootloader](https://github.com/nw-rs/bootloader) It's job is to bring the OS up and running
+
 
 ## ⚖️ Licensing ⚖️
 
