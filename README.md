@@ -2,7 +2,7 @@
   
 # RustWorks
 
-  <i>Creating a truly free operating system for calculators.</i>  
+  *Creating a truly free operating system for calculators.*
 </div>
 
 <div align="center">
