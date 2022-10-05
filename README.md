@@ -53,7 +53,7 @@ If you would like to contribute, please, fork the repo and open a Pull Request (
 ## ⚙️ Components ⚙️
 
 RustWorks is composed of several components which are listed here:
-- [rcas](https://github.com/nw-rs/rcas) - Open source computer algebra system
+- [rcas](https://github.com/nw-rs/rcas) - Computer algebra system
 - [board-support](https://github.com/nw-rs/board-support) - Files for compatibility with NumWorks n0110 hardware
 - [bootloader](https://github.com/nw-rs/bootloader) - It's job is to bring the OS up and running
 - [flash_algo](https://github.com/nw-rs/flash-algo) - This is used to flash the firmware to the calculator
