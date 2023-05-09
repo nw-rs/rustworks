@@ -27,3 +27,10 @@ lto = true
 
 [patch.'https://github.com/nw-rs/board-support.git']
 nw-board-support = { path = "./board-support" }
+
+[patch.'https://github.com/nw-rs/citrus-cas.git']
+citrus-cas = { path = "./citrus-cas" }
+
+[patch.'https://github.com/nw-rs/bootloader.git']
+nw-bootloader = { path = "./bootloader" }
+

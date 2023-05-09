@@ -1,9 +1,12 @@
 [submodule "board-support"]
 	path = board-support
-	url = https://github.com/nw-rs/board-support.git
+	url = ../board-support.git
 [submodule "bootloader"]
 	path = bootloader
-	url = https://github.com/nw-rs/bootloader.git
+	url = ../bootloader.git
 [submodule "os"]
 	path = os
-	url = https://github.com/nw-rs/os.git
+	url = ../os.git
+[submodule "citrus-cas"]
+	path = citrus-cas
+	url = ../citrus-cas.git

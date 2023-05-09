@@ -1,0 +1,4 @@
+[toolchain]
+channel = "nightly"
+targets = ["thumbv7em-none-eabihf"]
+profile = "complete"
