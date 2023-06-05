@@ -39,6 +39,7 @@
               cargo-flash
               cargo-make
               dfu-util
+              openocd
               probe-run
               rust-toolchain
               stlink-gui
