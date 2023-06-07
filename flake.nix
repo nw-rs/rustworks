@@ -27,10 +27,10 @@
               if system == "aarch64-darwin"
               then (pkgs // {system = "x86_64-darwin";}).gcc-arm-embedded
               else pkgs.gcc-arm-embedded;
-            rust-toolchain = fenix.packages.${system}.combine (with fenix.packages.${system}; [
-              latest.toolchain
-              targets.thumbv7em-none-eabihf.latest.rust-std
-            ]);
+            # rust-toolchain = fenix.packages.${system}.combine (with fenix.packages.${system}; [
+            #   latest.toolchain
+            #   targets.thumbv7em-none-eabihf.latest.rust-std
+            # ]);
           in
             with pkgs; [
               arm-gcc
@@ -39,9 +39,10 @@
               cargo-flash
               cargo-make
               dfu-util
+              flip-link
               openocd
               probe-run
-              rust-toolchain
+              # rust-toolchain
               stlink-gui
             ];
         };
